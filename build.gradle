@@ -49,7 +49,14 @@ repositories {
         }
     }
 
-    maven { url = "https://www.cursemaven.com" } // curse mods
+    // Oculus (Iris for Forge/NeoForge)
+    // 如果你需要测试 Shader 渲染相关的 ModIntegration.OCULUS 逻辑，可能需要这个
+    maven {
+        url "https://www.cursemaven.com"
+        content {
+            includeGroup "curse.maven"
+        }
+    }
 }
 
 base {
@@ -141,9 +148,14 @@ dependencies {
     //compileOnly "appeng:appliedenergistics2-neoforge:${ae2_version}:api"
     //runtimeOnly "appeng:appliedenergistics2-neoforge:${ae2_version}"
 
-    //Curios
-    //runtimeOnly "top.theillusivec4.curios:curios-neoforge:${curios_version}"
-    //compileOnly "top.theillusivec4.curios:curios-neoforge:${curios_version}:api"
+    // [修改] Curios 依赖 (已启用)
+    // 编译时依赖 API
+    compileOnly "top.theillusivec4.curios:curios-neoforge:9.5.0+1.21.1"
+    // 运行时加载完整模组 (方便测试 runClient)
+    runtimeOnly "top.theillusivec4.curios:curios-neoforge:9.5.0+1.21.1"
+
+    // [可选] Oculus (如果需要测试渲染兼容性，请自行替换 fileID)
+    // runtimeOnly "curse.maven:oculus-581495:xxxxxxx"
 
     // Example mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
@@ -177,21 +189,6 @@ dependencies {
         def version = basename.substring(versionSep + 1)
         compileOnly "extra-api:$artifactId:$version"
     }
-
-    // Example mod dependency using a mod jar from ./libs with a flat dir repository
-    // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar
-    // The group id is ignored when searching -- in this case, it is "blank"
-    // implementation "blank:coolmod-${mc_version}:${coolmod_version}"
-
-    // Example mod dependency using a file as dependency
-    // implementation files("libs/coolmod-${mc_version}-${coolmod_version}.jar")
-
-    // Example project dependency using a sister or child project:
-    // implementation project(":myproject")
-
-    // For more info:
-    // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
-    // http://www.gradle.org/docs/current/userguide/dependency_management.html
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
@@ -228,5 +225,7 @@ publishing {
 }
 
 tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
+    options.encoding = 'UTF-8' // 保持原有配置
+    // 添加下面这一行来查看详细警告
+    options.compilerArgs << "-Xlint:deprecation" << "-Xlint:unchecked"
 }

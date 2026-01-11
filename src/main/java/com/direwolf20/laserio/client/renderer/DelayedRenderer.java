@@ -10,18 +10,21 @@ import java.util.Queue;
 import java.util.Set;
 
 public class DelayedRenderer {
+    // 使用 LinkedList 作为队列实现
     private static final Queue<BaseLaserBE> beRenders = new LinkedList<>();
     private static final Set<LaserNodeBE> beConnectingRenders = new HashSet<>();
 
     public static void render(PoseStack matrixStackIn) {
         if (beRenders.size() > 0) {
-            RenderUtils.drawLasersLast2(beRenders, matrixStackIn);
+            // [修复] 调用新的 drawLasers 方法 (原 drawLasersLast2)
+            RenderUtils.drawLasers(beRenders, matrixStackIn);
         }
     }
 
     public static void renderConnections(PoseStack matrixStackIn) {
         if (beConnectingRenders.isEmpty()) return;
-        RenderUtils.drawConnectingLasersLast4(beConnectingRenders, matrixStackIn);
+        // [修复] 调用新的 drawConnectingLasers 方法 (原 drawConnectingLasersLast4)
+        RenderUtils.drawConnectingLasers(beConnectingRenders, matrixStackIn);
         beConnectingRenders.clear();
     }
 
