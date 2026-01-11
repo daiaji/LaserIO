@@ -1,0 +1,33 @@
+{
+  "criteria": {
+    "obtain_laser_node": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "laserio:laser_node"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "obtain_laser_node"
+    ]
+  ],
+  "rewards": {
+    "loot": [
+      "laserio:advancement_rewards/grant_book"
+    ]
+  },
+  "sends_telemetry_event": true,
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "patchouli"
+    }
+  ]
+}

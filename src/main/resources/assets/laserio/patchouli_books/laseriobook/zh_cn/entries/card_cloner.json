@@ -6,11 +6,23 @@
   "pages": [
     {
       "type": "patchouli:text",
-      "text": "卡片克隆器可用于在卡之间“复制和粘贴”设置！在$(l:laserio:laser_node)激光节点$(/l)界面中，拿起卡片克隆器（在光标上），左键点击一张卡以复制其设置。$(br2)右键点击一张卡以粘贴存储的设置。"
+      "text": "卡片克隆器不仅可以用来“复制和粘贴”单个$(l:laserio:cards)卡片$(/l)，现在还能复制整个$(l:laserio:laser_node)节点$(/l)！$(br2)粘贴时，卡片、$(l:laserio:overclocker_card)超频元件$(/l)和$(l:laserio:filters)过滤器$(/l)会自动从当前可用的$(l:laserio:card_holder)卡存储器$(/l)中取出（或放回多余的）。这些物品不会直接从玩家的物品栏中消耗。"
     },
     {
       "type": "patchouli:text",
-      "text": "粘贴时，$(l:laserio:overclocker_card)超频元件$(/l)和$(l:laserio:filters)过滤器$(/l)会自动从当前可用的$(l:laserio:card_holder)卡存储器$(/l)中取出（或放回）。这些物品不会从玩家的物品栏中提取。$(br2)如果缺少任何必要的物品，粘贴将会失败。它$(bold)不会$()部分粘贴设置。"
+      "text": "如果缺少任何必要的物品，粘贴将会失败。它$(bold)不会$(/l)执行部分粘贴。$(br2)$(bold)卡片克隆$(/l)$(br)在节点界面内，拿起卡片克隆器（在光标上）并左键点击一张卡以复制其设置。$(br2)右键点击另一张卡以粘贴存储的设置。"
+    },
+    {
+      "type": "patchouli:text",
+      "text": "$(bold)节点克隆$(/l)$(br)在世界中（手持卡片克隆器时），Shift+右键点击一个节点以复制它。这将复制该节点的所有内容物，以及它所属网络的$(l:laserio:settings_screen)网络设置$(/l)。$(br2)对着空气右键可以切换粘贴模式。共有两种模式：$(bold)节点内容$(/l)和$(bold)网络设置$(/l)。"
+    },
+    {
+      "type": "patchouli:text",
+      "text": "当粘贴模式设为$(bold)节点内容$(/l)时，卡片克隆器将仅粘贴已复制节点的卡片及其所有设置（包括超频元件和过滤器）、$(l:laserio:overclocker_node)节点超频元件$(/l)以及粒子效果设置。$(br2)当粘贴模式设为$(bold)网络设置$(/l)时，将仅粘贴已复制节点网络的颜色、透明度和扳手透明度数值。"
+    },
+    {
+      "type": "patchouli:text",
+      "text": "看着一个节点时，右键点击即可根据当前选择的模式粘贴数据。$(br2)对着空气 Shift+右键点击将清除卡片克隆器中存储的所有设置。"
     },
     {
       "type": "patchouli:crafting",

@@ -28,7 +28,6 @@ public class LaserIODataComponents {
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<Boolean>> CARD_HOLDER_ACTIVE = register("card_holder_active", Codec.BOOL, ByteBufCodecs.BOOL);
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<UUID>> CARD_HOLDER_UUID = register("card_holder_uuid", UUIDUtil.CODEC, UUIDUtil.STREAM_CODEC);
     
-    // 使用 ItemContainerContents 存储内容 (CacheEncoding 优化)
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<ItemContainerContents>> ITEMSTACK_HANDLER = COMPONENTS.register("itemstack_handler", () -> DataComponentType.<ItemContainerContents>builder().persistent(ItemContainerContents.CODEC).networkSynchronized(ItemContainerContents.STREAM_CODEC).cacheEncoding().build());
 
     // --- Card Cloner ---
@@ -40,7 +39,6 @@ public class LaserIODataComponents {
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<Byte>> CARD_TRANSFER_MODE = register("card_transfer_mode", Codec.BYTE, ByteBufCodecs.BYTE);
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<Byte>> CARD_CHANNEL = register("card_channel", Codec.BYTE, ByteBufCodecs.BYTE);
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> CARD_EXTRACT_SPEED = register("card_extract_speed", Codec.INT, ByteBufCodecs.VAR_INT);
-    // 注意：这里包含了 Backoff 功能
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<Byte>> CARD_MAX_BACKOFF = register("card_max_backoff", Codec.BYTE, ByteBufCodecs.BYTE);
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<Short>> CARD_PRIORITY = register("card_priority", Codec.SHORT, ByteBufCodecs.SHORT);
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<Byte>> CARD_SNEAKY = register("card_sneaky", Codec.BYTE, ByteBufCodecs.BYTE);
@@ -76,12 +74,10 @@ public class LaserIODataComponents {
 
     // --- Helper Methods ---
     
-    // 辅助方法：注册没有 StreamCodec 的组件 (仅服务端/持久化)
     private static @NotNull <T> DeferredHolder<DataComponentType<?>, DataComponentType<T>> register(String name, final Codec<T> codec) {
         return register(name, codec, null);
     }
 
-    // 辅助方法：注册带 StreamCodec 的组件 (网络同步)
     private static @NotNull <T> DeferredHolder<DataComponentType<?>, DataComponentType<T>> register(String name, final Codec<T> codec, @Nullable final StreamCodec<? super RegistryFriendlyByteBuf, T> streamCodec) {
         return COMPONENTS.register(name, () -> {
             DataComponentType.Builder<T> builder = DataComponentType.<T>builder().persistent(codec);
