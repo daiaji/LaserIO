@@ -2,6 +2,7 @@ package com.direwolf20.laserio.util;
 
 import com.mojang.math.Axis;
 import io.netty.buffer.ByteBuf;
+import net.minecraft.ChatFormatting; // [新增]
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.GlobalPos;
@@ -122,11 +123,53 @@ public class MiscTools {
         return list;
     }
 
+    public static MutableComponent tooltipMaker(String translationKey, String prefix, int color) {
+        MutableComponent component = Component.translatable(translationKey);
+        if (!prefix.isBlank()) {
+            component = Component.literal(prefix).append(component);
+        }
+        Style style = Style.EMPTY.withColor(color);
+        component.setStyle(style);
+        return component;
+    }
+
+    // [新增] ChatFormatting 重载
+    public static MutableComponent tooltipMaker(String translationKey, String prefix, ChatFormatting color) {
+        return tooltipMaker(translationKey, prefix, color.getColor());
+    }
+
     public static MutableComponent tooltipMaker(String string, int color) {
-        Style style = Style.EMPTY;
-        style = style.withColor(color);
-        MutableComponent current = Component.translatable(string);
-        current.setStyle(style);
-        return current;
+        return tooltipMaker(string, "", color);
+    }
+
+    // [新增] ChatFormatting 重载
+    public static MutableComponent tooltipMaker(String string, ChatFormatting color) {
+        return tooltipMaker(string, "", color.getColor());
+    }
+
+    public static MutableComponent tooltipMakerLiteral(String literal, String prefix, int color) {
+        MutableComponent component;
+        if (prefix.isBlank()) {
+            component = Component.literal(literal);
+        } else {
+            component = Component.literal(prefix + literal);
+        }
+        Style style = Style.EMPTY.withColor(color);
+        component.setStyle(style);
+        return component;
+    }
+
+    public static MutableComponent tooltipMakerLiteral(String literal, int color) {
+        return tooltipMakerLiteral(literal, "", color);
+    }
+
+    // [新增] ChatFormatting 重载
+    public static MutableComponent tooltipMakerLiteral(String literal, ChatFormatting color) {
+        return tooltipMakerLiteral(literal, "", color.getColor());
+    }
+
+    // [新增] ChatFormatting 重载
+    public static MutableComponent tooltipMakerLiteral(String literal, String prefix, ChatFormatting color) {
+        return tooltipMakerLiteral(literal, prefix, color.getColor());
     }
 }

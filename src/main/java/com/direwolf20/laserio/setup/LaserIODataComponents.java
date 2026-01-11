@@ -5,6 +5,7 @@ import com.mojang.serialization.Codec;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.core.component.DataComponentType;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
@@ -20,57 +21,74 @@ import java.util.UUID;
 public class LaserIODataComponents {
     public static final DeferredRegister<DataComponentType<?>> COMPONENTS = DeferredRegister.createDataComponents(LaserIO.MODID);
 
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<GlobalPos>> BOUND_GLOBAL_POS = COMPONENTS.register("bound_global_pos", () -> DataComponentType.<GlobalPos>builder().persistent(GlobalPos.CODEC).networkSynchronized(GlobalPos.STREAM_CODEC).build());
+    // --- Base / Wrench ---
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<GlobalPos>> BOUND_GLOBAL_POS = register("bound_global_pos", GlobalPos.CODEC, GlobalPos.STREAM_CODEC);
+
+    // --- Card Holder ---
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Boolean>> CARD_HOLDER_ACTIVE = register("card_holder_active", Codec.BOOL, ByteBufCodecs.BOOL);
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<UUID>> CARD_HOLDER_UUID = register("card_holder_uuid", UUIDUtil.CODEC, UUIDUtil.STREAM_CODEC);
+    
+    // 使用 ItemContainerContents 存储内容 (CacheEncoding 优化)
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<ItemContainerContents>> ITEMSTACK_HANDLER = COMPONENTS.register("itemstack_handler", () -> DataComponentType.<ItemContainerContents>builder().persistent(ItemContainerContents.CODEC).networkSynchronized(ItemContainerContents.STREAM_CODEC).cacheEncoding().build());
 
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Byte>> CARD_TRANSFER_MODE = COMPONENTS.register("card_transfer_mode", () -> DataComponentType.<Byte>builder().persistent(Codec.BYTE).networkSynchronized(ByteBufCodecs.BYTE).build());
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Byte>> CARD_CHANNEL = COMPONENTS.register("card_channel", () -> DataComponentType.<Byte>builder().persistent(Codec.BYTE).networkSynchronized(ByteBufCodecs.BYTE).build());
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> CARD_EXTRACT_SPEED = COMPONENTS.register("card_extract_speed", () -> DataComponentType.<Integer>builder().persistent(Codec.INT).networkSynchronized(ByteBufCodecs.VAR_INT).build());
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Byte>> CARD_MAX_BACKOFF = COMPONENTS.register("card_max_backoff", () -> DataComponentType.<Byte>builder().persistent(Codec.BYTE).networkSynchronized(ByteBufCodecs.BYTE).build());
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Short>> CARD_PRIORITY = COMPONENTS.register("card_priority", () -> DataComponentType.<Short>builder().persistent(Codec.SHORT).networkSynchronized(ByteBufCodecs.SHORT).build());
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Byte>> CARD_SNEAKY = COMPONENTS.register("card_sneaky", () -> DataComponentType.<Byte>builder().persistent(Codec.BYTE).networkSynchronized(ByteBufCodecs.BYTE).build());
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Boolean>> CARD_REGULATE = COMPONENTS.register("card_regulate", () -> DataComponentType.<Boolean>builder().persistent(Codec.BOOL).networkSynchronized(ByteBufCodecs.BOOL).build());
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> CARD_ROUND_ROBIN = COMPONENTS.register("card_round_robin", () -> DataComponentType.<Integer>builder().persistent(Codec.INT).networkSynchronized(ByteBufCodecs.VAR_INT).build());
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Byte>> CARD_REDSTONE_MODE = COMPONENTS.register("card_redstone_mode", () -> DataComponentType.<Byte>builder().persistent(Codec.BYTE).networkSynchronized(ByteBufCodecs.BYTE).build());
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Boolean>> CARD_EXACT = COMPONENTS.register("card_exact", () -> DataComponentType.<Boolean>builder().persistent(Codec.BOOL).networkSynchronized(ByteBufCodecs.BOOL).build());
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Byte>> CARD_REDSTONE_CHANNEL = COMPONENTS.register("card_redstone_channel", () -> DataComponentType.<Byte>builder().persistent(Codec.BYTE).networkSynchronized(ByteBufCodecs.BYTE).build());
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Boolean>> CARD_AND_MODE = COMPONENTS.register("card_and_mode", () -> DataComponentType.<Boolean>builder().persistent(Codec.BOOL).networkSynchronized(ByteBufCodecs.BOOL).build());
+    // --- Card Cloner ---
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<String>> CARD_CLONER_ITEM_TYPE = register("card_cloner_item_type", Codec.STRING, ByteBufCodecs.STRING_UTF8);
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<CompoundTag>> CLONER_NODE_DATA = register("cloner_node_data", CompoundTag.CODEC, ByteBufCodecs.COMPOUND_TAG);
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Boolean>> CLONER_PASTE_NETWORK_ONLY = register("cloner_paste_network_only", Codec.BOOL, ByteBufCodecs.BOOL);
 
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<String>> CARD_CLONER_ITEM_TYPE = COMPONENTS.register("card_cloner_item_type", () -> DataComponentType.<String>builder().persistent(Codec.STRING).networkSynchronized(ByteBufCodecs.STRING_UTF8).build());
+    // --- Card Settings ---
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Byte>> CARD_TRANSFER_MODE = register("card_transfer_mode", Codec.BYTE, ByteBufCodecs.BYTE);
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Byte>> CARD_CHANNEL = register("card_channel", Codec.BYTE, ByteBufCodecs.BYTE);
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> CARD_EXTRACT_SPEED = register("card_extract_speed", Codec.INT, ByteBufCodecs.VAR_INT);
+    // 注意：这里包含了 Backoff 功能
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Byte>> CARD_MAX_BACKOFF = register("card_max_backoff", Codec.BYTE, ByteBufCodecs.BYTE);
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Short>> CARD_PRIORITY = register("card_priority", Codec.SHORT, ByteBufCodecs.SHORT);
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Byte>> CARD_SNEAKY = register("card_sneaky", Codec.BYTE, ByteBufCodecs.BYTE);
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Boolean>> CARD_REGULATE = register("card_regulate", Codec.BOOL, ByteBufCodecs.BOOL);
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> CARD_ROUND_ROBIN = register("card_round_robin", Codec.INT, ByteBufCodecs.VAR_INT);
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Byte>> CARD_REDSTONE_MODE = register("card_redstone_mode", Codec.BYTE, ByteBufCodecs.BYTE);
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Boolean>> CARD_EXACT = register("card_exact", Codec.BOOL, ByteBufCodecs.BOOL);
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Byte>> CARD_REDSTONE_CHANNEL = register("card_redstone_channel", Codec.BYTE, ByteBufCodecs.BYTE);
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Boolean>> CARD_AND_MODE = register("card_and_mode", Codec.BOOL, ByteBufCodecs.BOOL);
 
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Boolean>> CARD_HOLDER_ACTIVE = COMPONENTS.register("card_holder_active", () -> DataComponentType.<Boolean>builder().persistent(Codec.BOOL).networkSynchronized(ByteBufCodecs.BOOL).build());
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<UUID>> CARD_HOLDER_UUID = COMPONENTS.register("card_holder_uuid", () -> DataComponentType.<UUID>builder().persistent(UUIDUtil.CODEC).networkSynchronized(UUIDUtil.STREAM_CODEC).build());
+    // --- Specific Card Settings ---
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> ENERGY_CARD_EXTRACT_AMT = register("energy_card_extract_amt", Codec.INT, ByteBufCodecs.VAR_INT);
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> ENERGY_CARD_EXTRACT_SPEED = register("energy_card_extract_speed", Codec.INT, ByteBufCodecs.VAR_INT);
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> ENERGY_CARD_INSERT_LIMIT = register("energy_card_insert_limit", Codec.INT, ByteBufCodecs.VAR_INT);
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> ENERGY_CARD_EXTRACT_LIMIT = register("energy_card_extract_limit", Codec.INT, ByteBufCodecs.VAR_INT);
 
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> ENERGY_CARD_EXTRACT_AMT = COMPONENTS.register("energy_card_extract_amt", () -> DataComponentType.<Integer>builder().persistent(Codec.INT).networkSynchronized(ByteBufCodecs.VAR_INT).build());
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> ENERGY_CARD_EXTRACT_SPEED = COMPONENTS.register("energy_card_extract_speed", () -> DataComponentType.<Integer>builder().persistent(Codec.INT).networkSynchronized(ByteBufCodecs.VAR_INT).build());
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> ENERGY_CARD_INSERT_LIMIT = COMPONENTS.register("energy_card_insert_limit", () -> DataComponentType.<Integer>builder().persistent(Codec.INT).networkSynchronized(ByteBufCodecs.VAR_INT).build());
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> ENERGY_CARD_EXTRACT_LIMIT = COMPONENTS.register("energy_card_extract_limit", () -> DataComponentType.<Integer>builder().persistent(Codec.INT).networkSynchronized(ByteBufCodecs.VAR_INT).build());
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> FLUID_CARD_EXTRACT_AMT = register("fluid_card_extract_amt", Codec.INT, ByteBufCodecs.VAR_INT);
 
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> FLUID_CARD_EXTRACT_AMT = COMPONENTS.register("fluid_card_extract_amt", () -> DataComponentType.<Integer>builder().persistent(Codec.INT).networkSynchronized(ByteBufCodecs.VAR_INT).build());
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Byte>> ITEM_CARD_EXTRACT_AMT = register("item_card_extract_amt", Codec.BYTE, ByteBufCodecs.BYTE);
 
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Byte>> ITEM_CARD_EXTRACT_AMT = COMPONENTS.register("item_card_extract_amt", () -> DataComponentType.<Byte>builder().persistent(Codec.BYTE).networkSynchronized(ByteBufCodecs.BYTE).build());
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Boolean>> REDSTONE_CARD_STRONG = register("redstone_card_strong", Codec.BOOL, ByteBufCodecs.BOOL);
 
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Boolean>> REDSTONE_CARD_STRONG = COMPONENTS.register("redstone_card_strong", () -> DataComponentType.<Boolean>builder().persistent(Codec.BOOL).networkSynchronized(ByteBufCodecs.BOOL).build());
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> CHEMICAL_CARD_EXTRACT_AMT = register("chemical_card_extract_amt", Codec.INT, ByteBufCodecs.VAR_INT);
 
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> CHEMICAL_CARD_EXTRACT_AMT = COMPONENTS.register("chemical_card_extract_amt", () -> DataComponentType.<Integer>builder().persistent(Codec.INT).networkSynchronized(ByteBufCodecs.VAR_INT).build());
+    // --- Filters ---
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Boolean>> FILTER_ALLOW = register("filter_allow", Codec.BOOL, ByteBufCodecs.BOOL);
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Boolean>> FILTER_COMPARE = register("filter_compare", Codec.BOOL, ByteBufCodecs.BOOL);
 
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Boolean>> FILTER_ALLOW = COMPONENTS.register("filter_allow", () -> DataComponentType.<Boolean>builder().persistent(Codec.BOOL).networkSynchronized(ByteBufCodecs.BOOL).build());
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Boolean>> FILTER_COMPARE = COMPONENTS.register("filter_compare", () -> DataComponentType.<Boolean>builder().persistent(Codec.BOOL).networkSynchronized(ByteBufCodecs.BOOL).build());
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<List<Integer>>> FILTER_COUNT_MBAMT = register("filter_amount_mbamt", Codec.INT.listOf(), ByteBufCodecs.INT.apply(ByteBufCodecs.list()));
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<List<Integer>>> FILTER_COUNT_SLOT_COUNTS = register("filter_amount_slot_counts", Codec.INT.listOf(), ByteBufCodecs.INT.apply(ByteBufCodecs.list()));
 
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<List<Integer>>> FILTER_COUNT_MBAMT = COMPONENTS.register("filter_amount_mbamt", () -> DataComponentType.<List<Integer>>builder().persistent(Codec.INT.listOf()).networkSynchronized(ByteBufCodecs.INT.apply(ByteBufCodecs.list())).build());
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<List<Integer>>> FILTER_COUNT_SLOT_COUNTS = COMPONENTS.register("filter_amount_slot_counts", () -> DataComponentType.<List<Integer>>builder().persistent(Codec.INT.listOf()).networkSynchronized(ByteBufCodecs.INT.apply(ByteBufCodecs.list())).build());
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<List<String>>> FILTER_TAG_TAGS = register("filter_tag_tags", Codec.STRING.listOf(), ByteBufCodecs.STRING_UTF8.apply(ByteBufCodecs.list()));
 
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<List<String>>> FILTER_TAG_TAGS = COMPONENTS.register("filter_tag_tags", () -> DataComponentType.<List<String>>builder().persistent(Codec.STRING.listOf()).networkSynchronized(ByteBufCodecs.STRING_UTF8.apply(ByteBufCodecs.list())).build());
-
+    // --- Helper Methods ---
+    
+    // 辅助方法：注册没有 StreamCodec 的组件 (仅服务端/持久化)
     private static @NotNull <T> DeferredHolder<DataComponentType<?>, DataComponentType<T>> register(String name, final Codec<T> codec) {
         return register(name, codec, null);
     }
 
+    // 辅助方法：注册带 StreamCodec 的组件 (网络同步)
     private static @NotNull <T> DeferredHolder<DataComponentType<?>, DataComponentType<T>> register(String name, final Codec<T> codec, @Nullable final StreamCodec<? super RegistryFriendlyByteBuf, T> streamCodec) {
-        if (streamCodec == null) {
-            return COMPONENTS.register(name, () -> DataComponentType.<T>builder().persistent(codec).build());
-        } else {
-            return COMPONENTS.register(name, () -> DataComponentType.<T>builder().persistent(codec).networkSynchronized(streamCodec).build());
-        }
+        return COMPONENTS.register(name, () -> {
+            DataComponentType.Builder<T> builder = DataComponentType.<T>builder().persistent(codec);
+            if (streamCodec != null) {
+                builder.networkSynchronized(streamCodec);
+            }
+            return builder.build();
+        });
     }
 }

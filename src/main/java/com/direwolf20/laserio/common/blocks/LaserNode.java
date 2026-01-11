@@ -4,9 +4,12 @@ import com.direwolf20.laserio.common.blockentities.LaserNodeBE;
 import com.direwolf20.laserio.common.blocks.baseblocks.BaseLaserBlock;
 import com.direwolf20.laserio.common.containers.LaserNodeContainer;
 import com.direwolf20.laserio.common.containers.customhandler.LaserNodeItemHandler;
+import com.direwolf20.laserio.common.items.CardCloner;
 import com.direwolf20.laserio.common.items.CardHolder;
 import com.direwolf20.laserio.common.items.LaserWrench;
 import com.direwolf20.laserio.common.items.cards.BaseCard;
+import com.direwolf20.laserio.integration.ModIntegration; // [新增]
+import com.direwolf20.laserio.integration.curios.CuriosIntegration; // [新增]
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
@@ -16,16 +19,21 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -48,8 +56,10 @@ public class LaserNode extends BaseLaserBlock implements EntityBlock {
     @Override
     public InteractionResult useWithoutItem(BlockState blockState, Level level, BlockPos blockPos, Player player, BlockHitResult hit) {
         ItemStack heldItem = player.getMainHandItem();
-        if (heldItem.getItem() instanceof LaserWrench)
+        // 允许 CardCloner 绕过方块交互，将事件传递给物品本身的 use 方法
+        if (heldItem.getItem() instanceof LaserWrench || heldItem.getItem() instanceof CardCloner)
             return InteractionResult.PASS;
+            
         if (!level.isClientSide) {
             BlockEntity be = level.getBlockEntity(blockPos);
             if (be instanceof LaserNodeBE) {
@@ -98,14 +108,34 @@ public class LaserNode extends BaseLaserBlock implements EntityBlock {
         return stack;
     }
 
-    public static ItemStack findCardHolders(Player player) {
-        ItemStack cardHolder = ItemStack.EMPTY;
-        Inventory playerInventory = player.getInventory();
-        for (int i = 0; i < playerInventory.items.size(); i++) {
-            ItemStack itemStack = playerInventory.items.get(i);
-            if (itemStack.getItem() instanceof CardHolder) return itemStack;
+    // [修复] 添加 findFirstCardHolder 方法，支持 Curios
+    public static ItemStack findFirstCardHolder(Player player) {
+        // 1. 检查主手
+        ItemStack mainHand = player.getMainHandItem();
+        if (mainHand.getItem() instanceof CardHolder) return mainHand;
+
+        // 2. 检查副手
+        ItemStack offHand = player.getOffhandItem();
+        if (offHand.getItem() instanceof CardHolder) return offHand;
+
+        // 3. 检查背包
+        Inventory inventory = player.getInventory();
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            ItemStack stack = inventory.getItem(i);
+            if (stack.getItem() instanceof CardHolder) return stack;
         }
-        return cardHolder;
+
+        // 4. 检查 Curios
+        if (ModIntegration.CURIOS.isLoaded()) {
+            return CuriosIntegration.findFirstCardHolder(player);
+        }
+
+        return ItemStack.EMPTY;
+    }
+
+    // 兼容旧方法名，委托给 findFirstCardHolder
+    public static ItemStack findCardHolders(Player player) {
+        return findFirstCardHolder(player);
     }
 
     @Nullable
@@ -136,6 +166,7 @@ public class LaserNode extends BaseLaserBlock implements EntityBlock {
         }
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     public int getSignal(BlockState pBlockState, BlockGetter pBlockAccess, BlockPos pPos, Direction pSide) {
         BlockEntity blockEntity = pBlockAccess.getBlockEntity(pPos);
@@ -156,6 +187,7 @@ public class LaserNode extends BaseLaserBlock implements EntityBlock {
         return false;
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     public int getDirectSignal(BlockState pBlockState, BlockGetter pBlockAccess, BlockPos pPos, Direction pSide) {
         BlockEntity blockEntity = pBlockAccess.getBlockEntity(pPos);
@@ -213,6 +245,4 @@ public class LaserNode extends BaseLaserBlock implements EntityBlock {
         }
         super.onRemove(state, worldIn, pos, newState, isMoving);
     }
-
-
 }

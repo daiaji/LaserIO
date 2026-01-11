@@ -24,7 +24,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
-import static com.direwolf20.laserio.common.items.LaserWrench.maxDistance;
+import com.direwolf20.laserio.setup.Config;
 
 public class BaseLaserBE extends BlockEntity {
     protected final Set<BlockPos> connections = new CopyOnWriteArraySet<>();
@@ -241,7 +241,7 @@ public class BaseLaserBE extends BlockEntity {
                 baseLaserBE.removeNode(originalPos); // Remove this node from that one
                 removeNode(baseLaserBE.getBlockPos().offset(movedPos)); //Remove that node from this one
                 connectionsToUpdate.add(baseLaserBE); //Prepare to update that node's connections
-                if (oldWorldPos.closerThan(getBlockPos(), maxDistance)) {
+                if (oldWorldPos.closerThan(getBlockPos(), Config.MAX_NODES_DISTANCE.get())) {
                     addNode(baseLaserBE.getBlockPos()); // Add that node to this one
                     baseLaserBE.addNode(getBlockPos()); // Add this node to that one
                     if (wasRender) //IF this was responsible for rendering, hook me up, otherwise get the other node to render
