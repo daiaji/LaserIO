@@ -43,6 +43,9 @@ import java.util.List;
 
 public class LaserNodeScreen extends AbstractContainerScreen<LaserNodeContainer> {
     private final ResourceLocation GUI = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/laser_node.png");
+    protected static final ResourceLocation CARD_HOLDER_GUI = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/cardholder_node.png");
+    protected static final ResourceLocation SELECTED_TABS_OVERLAY = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/laser_node_selected_tabs.png");
+
     protected final LaserNodeContainer container;
     private boolean showCardHolderUI;
     private boolean currentParticles;
@@ -70,8 +73,12 @@ public class LaserNodeScreen extends AbstractContainerScreen<LaserNodeContainer>
         super(container, inv, name);
         this.container = container;
         this.imageHeight = 181;
-        showCardHolderUI = container.cardHolder.isEmpty();
+        this.showCardHolderUI = !container.cardHolder.isEmpty();
         this.currentParticles = container.tile.getShowParticles();
+    }
+
+    public boolean isCardHolderUIShown() {
+        return showCardHolderUI;
     }
 
     @Override
@@ -97,7 +104,6 @@ public class LaserNodeScreen extends AbstractContainerScreen<LaserNodeContainer>
         for (int i = 0; i < leftWidgets.size(); i++) {
             addRenderableWidget(leftWidgets.get(i));
         }
-
     }
 
     @Override
@@ -109,8 +115,8 @@ public class LaserNodeScreen extends AbstractContainerScreen<LaserNodeContainer>
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
-        validateHolder();
-        //this.renderBackground(guiGraphics);
+        this.renderBackground(guiGraphics, mouseX, mouseY, partialTicks);
+        toggleHolderSlots();
         super.render(guiGraphics, mouseX, mouseY, partialTicks);
         this.renderTooltip(guiGraphics, mouseX, mouseY);
         if (MiscTools.inBounds(particlesButton.getX(), particlesButton.getY(), particlesButton.getWidth(), particlesButton.getHeight(), mouseX, mouseY)) {
@@ -164,37 +170,52 @@ public class LaserNodeScreen extends AbstractContainerScreen<LaserNodeContainer>
         int relX = (this.width - this.imageWidth) / 2;
         int relY = (this.height - this.imageHeight) / 2;
         guiGraphics.blit(GUI, relX, relY, 0, 0, this.imageWidth, this.imageHeight);
-        if (showCardHolderUI) {
-            ResourceLocation CardHolderGUI = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/cardholder_node.png");
-            RenderSystem.setShaderTexture(0, CardHolderGUI);
-            guiGraphics.blit(CardHolderGUI, getGuiLeft() - 100, getGuiTop() + 24, 0, 0, this.imageWidth, this.imageHeight);
-        }
-    }
+        
+        int tabOffset = tabs[container.side].x - 2;
+        guiGraphics.blit(SELECTED_TABS_OVERLAY, getGuiLeft() + tabOffset, getGuiTop(), tabOffset, 0, 28, 24);
 
-    public boolean validateHolder() {
-        Inventory playerInventory = container.playerEntity.getInventory();
-        for (int i = 0; i < playerInventory.items.size(); i++) {
-            ItemStack itemStack = playerInventory.items.get(i);
-            if (itemStack.getItem() instanceof CardHolder) {
-                if (CardHolder.getUUID(itemStack).equals(container.cardHolderUUID)) {
-                    showCardHolderUI = true;
-                    toggleHolderSlots();
-                    return true;
-                }
-            }
+        if (showCardHolderUI) {
+            RenderSystem.setShaderTexture(0, CARD_HOLDER_GUI);
+            guiGraphics.blit(CARD_HOLDER_GUI, getGuiLeft() - 100, getGuiTop() + 24, 0, 0, this.imageWidth, this.imageHeight);
         }
-        showCardHolderUI = false;
-        toggleHolderSlots();
-        return false;
     }
 
     public void toggleHolderSlots() {
-        for (int i = 10; i < 10 + CardHolderContainer.SLOTS; i++) {
+        for (int i = LaserNodeContainer.SLOTS; i < (LaserNodeContainer.SLOTS + CardHolderContainer.SLOTS); i++) {
             if (i >= container.slots.size()) continue;
             Slot slot = container.getSlot(i);
-            if (!(slot instanceof CardHolderSlot)) continue;
-            ((CardHolderSlot) slot).setEnabled(showCardHolderUI);
+            if (slot instanceof CardHolderSlot cardHolderSlot) {
+                cardHolderSlot.setEnabled(showCardHolderUI);
+            }
         }
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double deltaX, double deltaY) {
+        // Correct parameter mapping for Minecraft 1.21 NeoForge
+        double delta = deltaY; 
+        
+        byte tabIndex;
+        if (delta > 0) {
+            tabIndex = switch(container.side) {
+                case 1 -> 0; //Down -> Up
+                case 0 -> 2; //Up -> North
+                default -> (byte) (container.side + 1); //Next tab
+            };
+        } else {
+            tabIndex = switch(container.side) {
+                default -> (byte) (container.side - 1); //Previous tab
+                case 2 -> 0; //North -> Up
+                case 0 -> 1; //Up -> Down
+                case 1 -> -1; //No more tabs
+            };
+        }
+        if (tabIndex >= 0 && tabIndex < tabs.length) {
+            PacketDistributor.sendToServer(new OpenNodePayload(container.tile.getBlockPos(), tabIndex));
+            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, deltaX, deltaY);
     }
 
     @Override

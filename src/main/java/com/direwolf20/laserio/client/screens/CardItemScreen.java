@@ -16,6 +16,7 @@ import com.direwolf20.laserio.common.items.cards.CardItem;
 import com.direwolf20.laserio.common.items.cards.CardRedstone;
 import com.direwolf20.laserio.common.items.filters.*;
 import com.direwolf20.laserio.common.network.data.*;
+import com.direwolf20.laserio.setup.Config;
 import com.direwolf20.laserio.util.MiscTools;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -32,6 +33,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.client.gui.widget.ExtendedButton;
@@ -43,6 +45,7 @@ import java.util.Map;
 
 public class CardItemScreen extends AbstractContainerScreen<CardItemContainer> {
     private final ResourceLocation GUI = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/itemcard.png");
+    protected static final ResourceLocation CARD_HOLDER_GUI = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/cardholder_node.png");
 
     protected final CardItemContainer container;
     protected byte currentMode;
@@ -69,6 +72,7 @@ public class CardItemScreen extends AbstractContainerScreen<CardItemContainer> {
     protected boolean renderFluids = false;
     protected boolean renderChemicals = false;
     private boolean showCardHolderUI;
+    protected int lastOverclockerCount;
 
     protected final String[] sneakyNames = {
             "screen.laserio.default",
@@ -85,13 +89,20 @@ public class CardItemScreen extends AbstractContainerScreen<CardItemContainer> {
         this.container = container;
         this.card = container.cardItem;
         filter = container.slots.get(0).getItem();
-        showCardHolderUI = container.cardHolder.isEmpty();
+        this.showCardHolderUI = !container.cardHolder.isEmpty();
+        if (container.slots.size() > 1) {
+            this.lastOverclockerCount = container.getSlot(1).getItem().getCount();
+        }
+    }
+
+    public boolean isCardHolderUIShown() {
+        return showCardHolderUI;
     }
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
-        validateHolder();
-        //this.renderBackground(guiGraphics);
+        this.renderBackground(guiGraphics, mouseX, mouseY, partialTicks);
+        toggleHolderSlots();
         toggleFilterSlots();
         if (renderChemicals) {
             guiGraphics = new LaserGuiGraphicsChemical(Minecraft.getInstance(), guiGraphics.bufferSource(), this);
@@ -225,11 +236,13 @@ public class CardItemScreen extends AbstractContainerScreen<CardItemContainer> {
     }
 
     public void toggleHolderSlots() {
-        for (int i = 17; i < 17 + CardHolderContainer.SLOTS; i++) {
+        // [修复] 使用 FILTERSLOTS (旧命名约定)
+        for (int i = CardItemContainer.SLOTS + CardItemContainer.FILTERSLOTS; i < (CardItemContainer.SLOTS + CardItemContainer.FILTERSLOTS + CardHolderContainer.SLOTS); i++) {
             if (i >= container.slots.size()) continue;
             Slot slot = container.getSlot(i);
-            if (!(slot instanceof CardHolderSlot)) continue;
-            ((CardHolderSlot) slot).setEnabled(showCardHolderUI);
+            if (slot instanceof CardHolderSlot cardHolderSlot) {
+                cardHolderSlot.setEnabled(showCardHolderUI);
+            }
         }
     }
 
@@ -439,10 +452,6 @@ public class CardItemScreen extends AbstractContainerScreen<CardItemContainer> {
         }
 
         modeChange();
-        /*if (currentMode == 0) removeWidget(buttons.get("speed"));
-        if (currentMode == 0) removeWidget();
-        if (currentMode == 0 || currentMode == 1) removeWidget(buttons.get("roundrobin"));
-        if (currentMode == 0 || currentMode == 2) removeWidget(buttons.get("regulate"));*/
     }
 
     public void modeChange() {
@@ -855,5 +864,37 @@ public class CardItemScreen extends AbstractContainerScreen<CardItemContainer> {
             }
         }
         return super.mouseClicked(x, y, btn);
+    }
+
+    @Override
+    protected void slotClicked(Slot slot, int inventorySlotIndex, int depositedAmount, ClickType clickType) {
+        super.slotClicked(slot, inventorySlotIndex, depositedAmount, clickType);
+
+        // 仅处理 Item Card
+        if (!(card.getItem() instanceof CardItem)) {
+            return;
+        }
+
+        // 检查超频槽 (Index 1) 是否变化
+        ItemStack stack = container.getSlot(1).getItem();
+        int newOverclockerCount = stack.getCount();
+        if (newOverclockerCount == lastOverclockerCount) {
+            return;
+        }
+
+        // 更新逻辑：重新计算最大抽取量和速度
+        currentItemExtractAmt = (byte) Math.max(newOverclockerCount * 16, 8);
+        currentTicks = Math.max(Config.MIN_TICKS_ITEM.get().get(newOverclockerCount), currentTicks);
+
+        lastOverclockerCount = newOverclockerCount;
+
+        // 更新 UI 按钮数值
+        if (currentMode != 0) {
+            Button amountButton = buttons.get("amount");
+            if (amountButton instanceof NumberButton nb) nb.setValue(currentItemExtractAmt);
+
+            Button speedButton = buttons.get("speed");
+            if (speedButton instanceof NumberButton nb) nb.setValue(currentTicks);
+        }
     }
 }

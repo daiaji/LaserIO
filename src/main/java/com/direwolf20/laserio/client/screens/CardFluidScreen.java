@@ -15,6 +15,7 @@ import com.direwolf20.laserio.common.network.data.UpdateFilterPayload;
 import com.direwolf20.laserio.setup.Config;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button; // [新增] 修复找不到 Button 类的问题
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
@@ -22,6 +23,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.FluidUtil;
@@ -38,6 +41,7 @@ public class CardFluidScreen extends CardItemScreen {
     public final int filterStartY;
     public final int filterEndX;
     public final int filterEndY;
+    protected int lastOverclockerCount;
 
     public CardFluidScreen(CardItemContainer container, Inventory inv, Component name) {
         super(container, inv, name);
@@ -45,6 +49,9 @@ public class CardFluidScreen extends CardItemScreen {
         filterStartY = 16;
         filterEndX = 125;
         filterEndY = 70;
+        if (container.slots.size() > 1) {
+            this.lastOverclockerCount = container.getSlot(1).getItem().getCount();
+        }
     }
 
     @Override
@@ -173,5 +180,30 @@ public class CardFluidScreen extends CardItemScreen {
         if (showFilter)
             PacketDistributor.sendToServer(new UpdateFilterPayload(isAllowList == 1, isCompareNBT == 1));
         PacketDistributor.sendToServer(new UpdateCardPayload(currentMode, currentChannel, currentFluidExtractAmt, currentPriority, currentSneaky, (short) currentTicks, currentExact, currentRegulate, (byte) currentRoundRobin, 0, 0, currentRedstoneMode, currentRedstoneChannel, currentAndMode, currentMaxBackoff));
+    }
+
+    @Override
+    protected void slotClicked(Slot slot, int inventorySlotIndex, int depositedAmount, ClickType clickType) {
+        // 调用父类 (主要是 super.super，CardItemScreen 的逻辑对流体不适用)
+        super.slotClicked(slot, inventorySlotIndex, depositedAmount, clickType);
+
+        int newOverclockerCount = container.getSlot(1).getItem().getCount();
+        if (newOverclockerCount == lastOverclockerCount) {
+            return;
+        }
+
+        // 计算流体特定的数值
+        currentFluidExtractAmt = Math.max(newOverclockerCount * Config.MULTIPLIER_MILLI_BUCKETS_FLUID.get(), Config.BASE_MILLI_BUCKETS_FLUID.get());
+        currentTicks = Math.max(Config.MIN_TICKS_FLUID.get().get(newOverclockerCount), currentTicks);
+
+        lastOverclockerCount = newOverclockerCount;
+
+        if (currentMode != 0) {
+            Button amountButton = buttons.get("amount");
+            if (amountButton instanceof NumberButton nb) nb.setValue(currentFluidExtractAmt);
+
+            Button speedButton = buttons.get("speed");
+            if (speedButton instanceof NumberButton nb) nb.setValue(currentTicks);
+        }
     }
 }

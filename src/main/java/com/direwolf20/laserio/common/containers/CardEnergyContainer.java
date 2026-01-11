@@ -20,7 +20,11 @@ import net.neoforged.neoforge.items.wrapper.InvWrapper;
 import javax.annotation.Nullable;
 
 public class CardEnergyContainer extends AbstractContainerMenu {
+    // [修复] 添加 SLOTS 常量，能量卡本身没有内部插槽，所以为 0
+    public static final int SLOTS = 0;
+
     public ItemStack cardItem;
+    public ItemStack cardHolder; // [新增] 添加 CardHolder 字段，与其他 Container 保持一致
     public Player playerEntity;
     protected IItemHandler playerInventory;
     public BlockPos sourceContainer = BlockPos.ZERO;
@@ -36,10 +40,12 @@ public class CardEnergyContainer extends AbstractContainerMenu {
     }
 
     public CardEnergyContainer(int windowId, Inventory playerInventory, Player player, ItemStack cardItem) {
+        // [修复] 变量名修正为 Registration.CardEnergy_Container (旧命名约定)
         super(Registration.CardEnergy_Container.get(), windowId);
         playerEntity = player;
         this.playerInventory = new InvWrapper(playerInventory);
         this.cardItem = cardItem;
+        this.cardHolder = findCardHolder(player); // [新增] 初始化 CardHolder
         layoutPlayerInventorySlots(8, 84);
     }
 
@@ -47,6 +53,13 @@ public class CardEnergyContainer extends AbstractContainerMenu {
         this(windowId, playerInventory, player, cardItem);
         this.sourceContainer = sourcePos;
         this.direction = direction;
+    }
+
+    // [新增] 简单的 CardHolder 查找方法
+    private ItemStack findCardHolder(Player player) {
+        if (player.getMainHandItem().getItem() instanceof com.direwolf20.laserio.common.items.CardHolder) return player.getMainHandItem();
+        if (player.getOffhandItem().getItem() instanceof com.direwolf20.laserio.common.items.CardHolder) return player.getOffhandItem();
+        return ItemStack.EMPTY;
     }
 
     @Override

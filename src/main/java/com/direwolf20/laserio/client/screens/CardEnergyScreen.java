@@ -5,9 +5,12 @@ import com.direwolf20.laserio.client.screens.widgets.NumberButton;
 import com.direwolf20.laserio.client.screens.widgets.ToggleButton;
 import com.direwolf20.laserio.common.LaserIO;
 import com.direwolf20.laserio.common.containers.CardEnergyContainer;
+import com.direwolf20.laserio.common.containers.CardHolderContainer;
+import com.direwolf20.laserio.common.containers.customslot.CardHolderSlot;
 import com.direwolf20.laserio.common.items.cards.BaseCard;
 import com.direwolf20.laserio.common.items.cards.CardEnergy;
 import com.direwolf20.laserio.common.items.cards.CardRedstone;
+import com.direwolf20.laserio.common.items.upgrades.OverclockerCard;
 import com.direwolf20.laserio.common.network.data.OpenNodePayload;
 import com.direwolf20.laserio.common.network.data.UpdateCardPayload;
 import com.direwolf20.laserio.setup.Config;
@@ -25,15 +28,19 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.client.gui.widget.ExtendedButton;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContainer> {
     private final ResourceLocation GUI = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/energycard.png");
+    private static final ResourceLocation CARD_HOLDER_GUI = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/cardholder_node.png");
 
     protected final CardEnergyContainer container;
     protected byte currentMode;
@@ -51,6 +58,8 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
     protected final ItemStack card;
     protected Map<String, Button> buttons = new HashMap<>();
     protected byte currentRedstoneMode;
+    private boolean showCardHolderUI;
+    private ItemStack lastOverclocker;
 
     protected final String[] sneakyNames = {
             "screen.laserio.default",
@@ -66,6 +75,11 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
         super(container, inv, name);
         this.container = container;
         this.card = container.cardItem;
+        this.showCardHolderUI = !container.cardHolder.isEmpty();
+    }
+
+    public boolean isCardHolderUIShown() {
+        return showCardHolderUI;
     }
 
     @Override
@@ -75,7 +89,8 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
-        //this.renderBackground(guiGraphics);
+        this.renderBackground(guiGraphics, mouseX, mouseY, partialTicks);
+        toggleHolderSlots();
         super.render(guiGraphics, mouseX, mouseY, partialTicks);
         this.renderTooltip(guiGraphics, mouseX, mouseY);
         Button modeButton = buttons.get("mode");
@@ -277,6 +292,12 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
             addRenderableWidget(button.getValue());
         }
 
+        if (CardEnergyContainer.SLOTS == 1 && container.slots.size() > 0) {
+            lastOverclocker = container.getSlot(0).getItem().copy();
+        } else {
+            lastOverclocker = ItemStack.EMPTY;
+        }
+
         modeChange();
     }
 
@@ -407,6 +428,28 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
         int relX = (this.width - this.imageWidth) / 2;
         int relY = (this.height - this.imageHeight) / 2;
         guiGraphics.blit(GUI, relX, relY, 0, 0, this.imageWidth, this.imageHeight);
+
+        if (showCardHolderUI) {
+            RenderSystem.setShaderTexture(0, CARD_HOLDER_GUI);
+            guiGraphics.blit(CARD_HOLDER_GUI, getGuiLeft() - 100, getGuiTop() + 24, 0, 0, this.imageWidth, this.imageHeight);
+        }
+    }
+
+    public void toggleHolderSlots() {
+        for (int i = CardEnergyContainer.SLOTS; i < (CardEnergyContainer.SLOTS + CardHolderContainer.SLOTS); i++) {
+            if (i >= container.slots.size()) continue;
+            Slot slot = container.getSlot(i);
+            if (slot instanceof CardHolderSlot cardHolderSlot) {
+                cardHolderSlot.setEnabled(showCardHolderUI);
+            }
+        }
+    }
+
+    @Override
+    protected boolean hasClickedOutside(double mouseX, double mouseY, int guiLeftIn, int guiTopIn, int mouseButton) {
+        if (showCardHolderUI)
+            return mouseX < (double) guiLeftIn - 100 || mouseY < (double) guiTopIn || mouseX >= (double) (guiLeftIn + this.imageWidth) || mouseY >= (double) (guiTopIn + this.imageHeight);
+        return super.hasClickedOutside(mouseX, mouseY, guiLeftIn, guiTopIn, mouseButton);
     }
 
     @Override
@@ -532,5 +575,34 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
         }
 
         return super.mouseClicked(x, y, btn);
+    }
+
+    @Override
+    protected void slotClicked(Slot slot, int inventorySlotIndex, int depositedAmount, ClickType clickType) {
+        super.slotClicked(slot, inventorySlotIndex, depositedAmount, clickType);
+        if (CardEnergyContainer.SLOTS != 1) {
+            return;
+        }
+
+        ItemStack newOverclocker = container.getSlot(0).getItem();
+        if (ItemStack.isSameItem(newOverclocker, lastOverclocker)) {
+            return;
+        }
+
+        int max = Config.MAX_FE_NO_TIERS.get();
+        if (!newOverclocker.isEmpty() && newOverclocker.getItem() instanceof OverclockerCard) {
+            int energyTier = newOverclocker.getCount();
+            List<? extends Integer> tiers = Config.MAX_FE_TIERS.get();
+            if (energyTier > 0 && energyTier <= tiers.size()) {
+                max = tiers.get(energyTier - 1);
+            }
+        }
+        currentEnergyExtractAmt = max;
+        lastOverclocker = newOverclocker.copy();
+
+        if (currentMode != 0) {
+            Button amountButton = buttons.get("amount");
+            if (amountButton instanceof NumberButton nb) nb.setValue(currentEnergyExtractAmt);
+        }
     }
 }
