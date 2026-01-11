@@ -4,7 +4,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.particle.BreakingItemParticle;
 import net.minecraft.client.particle.ParticleProvider;
-import net.minecraft.client.renderer.texture.TextureAtlas;
+import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.extensions.common.IClientFluidTypeExtensions;
@@ -43,7 +43,7 @@ public class FluidFlowParticle extends BreakingItemParticle {
         this.zd += path.z / speedAdjust;
         this.lifetime = (int) (distance * speedAdjust);
         this.scale(partSize);
-        this.setSprite(Minecraft.getInstance().getTextureAtlas(TextureAtlas.LOCATION_BLOCKS).apply(IClientFluidTypeExtensions.of(fluidStack.getFluid()).getStillTexture(fluidStack)));
+        this.setSprite(Minecraft.getInstance().getTextureAtlas(InventoryMenu.BLOCK_ATLAS).apply(IClientFluidTypeExtensions.of(fluidStack.getFluid()).getStillTexture(fluidStack)));
         //this.setSprite(Minecraft.getInstance().getTextureAtlas(InventoryMenu.BLOCK_ATLAS).apply(fluidStack.getFluid().getAttributes().getStillTexture(fluidStack)));
         int i = IClientFluidTypeExtensions.of(fluidStack.getFluid()).getTintColor(fluidStack);
         this.rCol *= (float) (i >> 16 & 255) / 255.0F;

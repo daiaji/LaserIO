@@ -12,7 +12,9 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.TagKey;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.material.Fluid;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.FluidUtil;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
@@ -224,7 +226,7 @@ public class BaseCardCache {
                 }
             }
         } else if (filterCard.getItem() instanceof FilterTag) {
-            for (TagKey tagKey : testStack.getItem().builtInRegistryHolder().tags().toList()) {
+            for (TagKey<Item> tagKey : testStack.getTags().toList()) {
                 String tag = tagKey.location().toString().toLowerCase(Locale.ROOT);
                 if (filterTags.contains(tag)) {
                     filterCache.put(key, isAllowList);
@@ -262,7 +264,7 @@ public class BaseCardCache {
                 }
             }
         } else if (filterCard.getItem() instanceof FilterTag) {
-            for (TagKey tagKey : testStack.getFluid().builtInRegistryHolder().tags().toList()) {
+            for (TagKey<Fluid> tagKey : BuiltInRegistries.FLUID.wrapAsHolder(testStack.getFluid()).tags().toList()) {
                 String tag = tagKey.location().toString().toLowerCase(Locale.ROOT);
                 if (filterTags.contains(tag)) {
                     filterCacheFluid.put(key, isAllowList);

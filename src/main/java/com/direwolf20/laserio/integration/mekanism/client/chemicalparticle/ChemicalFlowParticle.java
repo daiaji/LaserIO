@@ -5,7 +5,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.particle.BreakingItemParticle;
 import net.minecraft.client.particle.ParticleProvider;
-import net.minecraft.client.renderer.texture.TextureAtlas;
+import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 
@@ -33,7 +33,7 @@ public class ChemicalFlowParticle extends BreakingItemParticle {
         this.zd += path.z / speedAdjust;
         this.lifetime = (int) (distance * speedAdjust);
         this.scale(partSize);
-        this.setSprite(Minecraft.getInstance().getTextureAtlas(TextureAtlas.LOCATION_BLOCKS).apply(chemicalStack.getChemical().getIcon()));
+        this.setSprite(Minecraft.getInstance().getTextureAtlas(InventoryMenu.BLOCK_ATLAS).apply(chemicalStack.getChemical().getIcon()));
         int i = chemicalStack.getChemicalColorRepresentation();
         this.rCol *= (float) (i >> 16 & 255) / 255.0F;
         this.gCol *= (float) (i >> 8 & 255) / 255.0F;

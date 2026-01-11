@@ -217,7 +217,7 @@ public class FilterNBTScreen extends AbstractContainerScreen<FilterNBTContainer>
                 ItemStack stack = container.handler.getStackInSlot(0);
                 if (!stack.isEmpty()) {
                     if (hasShiftDown()) {
-                        stack.getItem().builtInRegistryHolder().tags().forEach(t -> {
+                        stack.getTags().forEach(t -> {
                             String tag = t.location().toString().toLowerCase(Locale.ROOT);
                             if (!tags.contains(tag))
                                 tags.add(tag);

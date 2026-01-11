@@ -202,14 +202,14 @@ public class FilterTagScreen extends AbstractContainerScreen<FilterTagContainer>
         stackInSlotTags = new ArrayList<>();
         ItemStack stackInSlot = container.handler.getStackInSlot(0);
         if (!stackInSlot.isEmpty()) {
-            stackInSlot.getItem().builtInRegistryHolder().tags().forEach(this::checkTag);
+            stackInSlot.getTags().forEach(this::checkTag);
 
             Optional<IFluidHandlerItem> fluidHandlerLazyOptional = FluidUtil.getFluidHandler(stackInSlot);
             if (fluidHandlerLazyOptional.isPresent()) {
                 IFluidHandler fluidHandler = fluidHandlerLazyOptional.get();
                 for (int tank = 0; tank < fluidHandler.getTanks(); tank++) {
                     FluidStack fluidStack = fluidHandler.getFluidInTank(tank);
-                    fluidStack.getFluid().builtInRegistryHolder().tags().forEach(this::checkTag);
+                    BuiltInRegistries.FLUID.wrapAsHolder(fluidStack.getFluid()).tags().forEach(this::checkTag);
                 }
             }
             if (MekanismIntegration.isLoaded()) {
@@ -246,7 +246,7 @@ public class FilterTagScreen extends AbstractContainerScreen<FilterTagContainer>
                 ItemStack stack = container.handler.getStackInSlot(0);
                 if (!stack.isEmpty()) {
                     if (hasShiftDown()) {
-                        stack.getItem().builtInRegistryHolder().tags().forEach(t -> {
+                        stack.getTags().forEach(t -> {
                             String tag = t.location().toString().toLowerCase(Locale.ROOT);
                             if (!tags.contains(tag))
                                 tags.add(tag);

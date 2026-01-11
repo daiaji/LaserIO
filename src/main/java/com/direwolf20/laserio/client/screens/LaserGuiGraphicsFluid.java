@@ -237,7 +237,7 @@ public class LaserGuiGraphicsFluid extends GuiGraphics {
         float green = (float) (fluidColor >> 8 & 255) / 255.0F;
         float blue = (float) (fluidColor & 255) / 255.0F;
 
-        RenderSystem.setShaderTexture(0, TextureAtlas.LOCATION_BLOCKS);
+        RenderSystem.setShaderTexture(0, InventoryMenu.BLOCK_ATLAS); // FIXED
 
         PoseStack posestack = pose();
         posestack.pushPose();
@@ -283,7 +283,7 @@ public class LaserGuiGraphicsFluid extends GuiGraphics {
         float green = (float) (fluidColor >> 8 & 255) / 255.0F;
         float blue = (float) (fluidColor & 255) / 255.0F;
         RenderSystem.setShader(GameRenderer::getPositionTexShader);
-        RenderSystem.setShaderTexture(0, InventoryMenu.BLOCK_ATLAS);
+        RenderSystem.setShaderTexture(0, InventoryMenu.BLOCK_ATLAS); // FIXED
 
         PoseStack posestack = pose();
         posestack.pushPose();
