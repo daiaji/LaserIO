@@ -7,7 +7,6 @@ import com.direwolf20.laserio.integration.mekanism.MekanismIntegration;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
-
 public class PacketHandler {
     public static void registerNetworking(final RegisterPayloadHandlersEvent event) {
         final PayloadRegistrar registrar = event.registrar(LaserIO.MODID);
@@ -24,14 +23,19 @@ public class PacketHandler {
         registrar.playToServer(ToggleParticlesPayload.TYPE, ToggleParticlesPayload.STREAM_CODEC, PacketToggleParticles.get()::handle);
         registrar.playToServer(ChangeColorPayload.TYPE, ChangeColorPayload.STREAM_CODEC, PacketChangeColor.get()::handle);
         registrar.playToServer(CopyPasteCardPayload.TYPE, CopyPasteCardPayload.STREAM_CODEC, PacketCopyPasteCard.get()::handle);
+        
+        // [新增] 注册节点复制/粘贴包 (如果之前未注册)
+        registrar.playToServer(CopyPasteNodePayload.TYPE, CopyPasteNodePayload.STREAM_CODEC, PacketCopyPasteNode.get()::handle);
 
-        //Client Side
+        // [新增] 注册按键绑定动作包 (阶段 1)
+        registrar.playToServer(KeybindPerformActionPayload.TYPE, KeybindPerformActionPayload.STREAM_CODEC, PacketKeybindPerformAction.get()::handle);
+
+        // Client Side
         registrar.playToClient(NodeParticlesPayload.TYPE, NodeParticlesPayload.STREAM_CODEC, PacketNodeParticles.get()::handle);
         registrar.playToClient(NodeParticlesFluidPayload.TYPE, NodeParticlesFluidPayload.STREAM_CODEC, PacketNodeParticlesFluid.get()::handle);
 
-        //Mekanism Packets Only
+        // Mekanism Packets Only
         if (MekanismIntegration.isLoaded()) {
-            //Client Side
             registrar.playToClient(NodeParticlesChemicalPayload.TYPE, NodeParticlesChemicalPayload.STREAM_CODEC, PacketNodeParticlesChemical.get()::handle);
         }
     }

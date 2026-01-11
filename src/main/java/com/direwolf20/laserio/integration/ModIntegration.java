@@ -1,0 +1,23 @@
+package com.direwolf20.laserio.integration;
+
+import net.neoforged.fml.ModList;
+
+public enum ModIntegration {
+    OCULUS("oculus"),
+    CURIOS("curios"),
+    MEKANISM("mekanism");
+
+    private final String modId;
+
+    ModIntegration(String modId) {
+        this.modId = modId;
+    }
+
+    public String getModId() {
+        return modId;
+    }
+
+    public boolean isLoaded() {
+        return ModList.get().isLoaded(modId);
+    }
+}

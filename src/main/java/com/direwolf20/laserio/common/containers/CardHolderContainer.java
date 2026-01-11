@@ -1,6 +1,9 @@
 package com.direwolf20.laserio.common.containers;
 
 import com.direwolf20.laserio.common.containers.customslot.CardHolderSlot;
+import com.direwolf20.laserio.common.items.CardHolder;
+import com.direwolf20.laserio.integration.ModIntegration;
+import com.direwolf20.laserio.integration.curios.CuriosIntegration;
 import com.direwolf20.laserio.setup.LaserIODataComponents;
 import com.direwolf20.laserio.setup.Registration;
 import net.minecraft.core.BlockPos;
@@ -16,6 +19,7 @@ import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.SlotItemHandler;
 import net.neoforged.neoforge.items.wrapper.InvWrapper;
 
+import java.util.UUID;
 
 public class CardHolderContainer extends AbstractContainerMenu {
     public static final int SLOTS = 15;
@@ -57,7 +61,35 @@ public class CardHolderContainer extends AbstractContainerMenu {
 
     @Override
     public boolean stillValid(Player playerIn) {
-        return playerIn.getMainHandItem().equals(cardHolder) || playerIn.getOffhandItem().equals(cardHolder);
+        // 1. 基础检查：如果卡包物品本身变空了（比如被销毁），关闭界面
+        if (cardHolder.isEmpty()) return false;
+
+        // 2. 获取当前正在打开的卡包的 UUID (这是唯一标识符)
+        UUID targetUUID = CardHolder.getUUID(cardHolder);
+
+        // 3. 检查主手和副手 (最常见情况)
+        if (checkItem(playerIn.getMainHandItem(), targetUUID)) return true;
+        if (checkItem(playerIn.getOffhandItem(), targetUUID)) return true;
+
+        // 4. 检查玩家主背包 (修复按 'O' 键闪退的关键)
+        for (ItemStack stack : playerIn.getInventory().items) {
+            if (checkItem(stack, targetUUID)) return true;
+        }
+
+        // 5. 检查 Curios 饰品栏 (如果安装了 Curios)
+        if (ModIntegration.CURIOS.isLoaded()) {
+            ItemStack curiosStack = CuriosIntegration.findFirstCardHolder(playerIn);
+            if (checkItem(curiosStack, targetUUID)) return true;
+        }
+
+        return false;
+    }
+
+    // 辅助方法：检查物品堆是否是当前的卡存储器
+    private boolean checkItem(ItemStack stack, UUID targetUUID) {
+        return !stack.isEmpty() 
+               && stack.getItem() instanceof CardHolder 
+               && CardHolder.getUUID(stack).equals(targetUUID);
     }
 
     @Override

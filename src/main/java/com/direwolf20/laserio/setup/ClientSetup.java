@@ -5,6 +5,7 @@ import com.direwolf20.laserio.client.blockentityrenders.LaserConnectorBERender;
 import com.direwolf20.laserio.client.blockentityrenders.LaserNodeBERender;
 import com.direwolf20.laserio.client.events.ClientEvents;
 import com.direwolf20.laserio.client.events.EventTooltip;
+import com.direwolf20.laserio.client.events.KeybindHandler;
 import com.direwolf20.laserio.client.screens.*;
 import com.direwolf20.laserio.common.LaserIO;
 import com.direwolf20.laserio.common.blockentities.LaserConnectorAdvBE;
@@ -14,9 +15,6 @@ import com.direwolf20.laserio.common.items.cards.BaseCard;
 import com.direwolf20.laserio.common.items.cards.CardRedstone;
 import com.direwolf20.laserio.integration.mekanism.CardChemical;
 import com.direwolf20.laserio.integration.mekanism.MekanismIntegration;
-import net.minecraft.client.color.item.ItemColors;
-import net.minecraft.client.renderer.ItemBlockRenderTypes;
-import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.item.ItemProperties;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FastColor;
@@ -27,6 +25,7 @@ import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterClientTooltipComponentFactoriesEvent;
 import net.neoforged.neoforge.client.event.RegisterColorHandlersEvent;
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.common.NeoForge;
 
@@ -35,14 +34,16 @@ import java.awt.*;
 @EventBusSubscriber(modid = LaserIO.MODID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.MOD)
 public class ClientSetup {
     public static void init(final FMLClientSetupEvent event) {
-        ItemBlockRenderTypes.setRenderLayer(Registration.LaserNode.get(), RenderType.cutout());
-        ItemBlockRenderTypes.setRenderLayer(Registration.LaserConnector.get(), RenderType.cutout());
+        // Render types are now handled in the model JSON files ("render_type": "minecraft:cutout")
 
         //Register Custom Tooltips
         //MinecraftForgeClient.registerTooltipComponentFactory(EventTooltip.CopyPasteTooltipComponent.Data.class, EventTooltip.CopyPasteTooltipComponent::new);
 
         //Register our Render Events Class
         NeoForge.EVENT_BUS.register(ClientEvents.class);
+        
+        //Register our Keybind Handler (Optional here if using @EventBusSubscriber on KeybindHandler, but safe to keep)
+        NeoForge.EVENT_BUS.register(KeybindHandler.class);
 
         //Item Properties -- For giving the Cards an Insert/Extract on the itemstack
         event.enqueueWork(() -> {
@@ -86,12 +87,20 @@ public class ClientSetup {
         event.register(Registration.CardFluid_Container.get(), CardFluidScreen::new);
         event.register(Registration.CardEnergy_Container.get(), CardEnergyScreen::new);
         event.register(Registration.CardRedstone_Container.get(), CardRedstoneScreen::new);
-        event.register(Registration.CardChemical_Container.get(), CardChemicalScreen::new);
+        if (MekanismIntegration.isLoaded()) {
+            event.register(Registration.CardChemical_Container.get(), CardChemicalScreen::new);
+        }
         event.register(Registration.CardHolder_Container.get(), CardHolderScreen::new);
         event.register(Registration.FilterBasic_Container.get(), FilterBasicScreen::new);
         event.register(Registration.FilterCount_Container.get(), FilterCountScreen::new);
         event.register(Registration.FilterTag_Container.get(), FilterTagScreen::new);
         event.register(Registration.FilterNBT_Container.get(), FilterNBTScreen::new);
+    }
+
+    @SubscribeEvent
+    public static void registerKeyMappings(RegisterKeyMappingsEvent event) {
+        event.register(KeybindHandler.OPEN_CARD_HOLDER);
+        event.register(KeybindHandler.TOGGLE_CARD_HOLDER_PULLING);
     }
 
     @SubscribeEvent
@@ -111,9 +120,7 @@ public class ClientSetup {
     //For giving the cards their channel color on the itemstack
     @SubscribeEvent
     static void itemColors(RegisterColorHandlersEvent.Item event) {
-        final ItemColors colors = event.getItemColors();
-
-        colors.register((stack, index) -> {
+        event.register((stack, index) -> {
             if (index == 2) {
                 if (BaseCard.getTransferMode(stack) == (byte) 3) {
                     Color color = LaserNodeBERender.colors[BaseCard.getRedstoneChannel(stack)];
@@ -125,7 +132,7 @@ public class ClientSetup {
             }
             return 0xFFFFFFFF;
         }, Registration.Card_Item.get());
-        colors.register((stack, index) -> {
+        event.register((stack, index) -> {
             if (index == 2) {
                 if (BaseCard.getTransferMode(stack) == (byte) 3) {
                     Color color = LaserNodeBERender.colors[BaseCard.getRedstoneChannel(stack)];
@@ -138,7 +145,7 @@ public class ClientSetup {
             return 0xFFFFFFFF;
         }, Registration.Card_Fluid.get());
         if (MekanismIntegration.isLoaded()) {
-            colors.register((stack, index) -> {
+            event.register((stack, index) -> {
                 if (index == 2) {
                     if (BaseCard.getTransferMode(stack) == (byte) 3) {
                         Color color = LaserNodeBERender.colors[BaseCard.getRedstoneChannel(stack)];
@@ -151,7 +158,7 @@ public class ClientSetup {
                 return 0xFFFFFFFF;
             }, Registration.Card_Chemical.get());
         }
-        colors.register((stack, index) -> {
+        event.register((stack, index) -> {
             if (index == 2) {
                 if (BaseCard.getTransferMode(stack) == (byte) 3) {
                     Color color = LaserNodeBERender.colors[BaseCard.getRedstoneChannel(stack)];
@@ -163,28 +170,28 @@ public class ClientSetup {
             }
             return 0xFFFFFFFF;
         }, Registration.Card_Energy.get());
-        colors.register((stack, index) -> {
+        event.register((stack, index) -> {
             if (index == 2) {
                 Color color = LaserNodeBERender.colors[CardRedstone.getRedstoneChannel(stack)];
                 return color.getRGB();
             }
             return 0xFFFFFFFF;
         }, Registration.Card_Redstone.get());
-        colors.register((stack, index) -> {
+        event.register((stack, index) -> {
             if (index == 1) {
                 Color color = new Color(255, 0, 0, 255);
                 return color.getRGB();
             }
             return 0xFFFFFFFF;
         }, Registration.LaserNode_ITEM.get());
-        colors.register((stack, index) -> {
+        event.register((stack, index) -> {
             if (index == 1) {
                 Color color = new Color(255, 0, 0, 255);
                 return color.getRGB();
             }
             return 0xFFFFFFFF;
         }, Registration.LaserConnector_ITEM.get());
-        colors.register((stack, index) -> {
+        event.register((stack, index) -> {
             if (index == 1) {
                 Color color = new Color(255, 0, 0, 255);
                 return color.getRGB();

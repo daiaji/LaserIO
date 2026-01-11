@@ -1,0 +1,6 @@
+{
+  "icon": "curios:slot/empty_charm_slot",
+  "order": 100, 
+  "size": 1,
+  "add_cosmetic": true
+}
