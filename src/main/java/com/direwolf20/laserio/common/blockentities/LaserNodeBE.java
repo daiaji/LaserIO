@@ -18,6 +18,7 @@ import com.direwolf20.laserio.integration.mekanism.MekanismIntegration;
 import com.direwolf20.laserio.integration.mekanism.client.chemicalparticle.ParticleRenderDataChemical;
 import com.direwolf20.laserio.setup.Registration;
 import com.direwolf20.laserio.util.*;
+import com.direwolf20.laserio.util.ItemHandlerUtil.InventoryCardCounts;
 import it.unimi.dsi.fastutil.bytes.Byte2BooleanMap;
 import it.unimi.dsi.fastutil.bytes.Byte2BooleanOpenHashMap;
 import it.unimi.dsi.fastutil.bytes.Byte2ByteMap;
@@ -29,6 +30,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -40,6 +42,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -151,6 +154,14 @@ public class LaserNodeBE extends BaseLaserBE {
             com.direwolf20.laserio.common.containers.customhandler.LaserNodeItemHandler tempHandler = new com.direwolf20.laserio.common.containers.customhandler.LaserNodeItemHandler(LaserNodeContainer.SLOTS, this);
             nodeSideCaches[j] = new NodeSideCache(tempHandler, 0, new LaserEnergyStorage(direction));
         }
+    }
+
+    public InventoryCardCounts getNodeContents() {
+        InventoryCardCounts nodeContents = new InventoryCardCounts();
+        for (int i = 0; i < Direction.values().length; i++) {
+            nodeContents.addHandler(nodeSideCaches[i].itemHandler);
+        }
+        return nodeContents;
     }
 
     public List<InserterCardCache> getInserterNodes() {
@@ -346,8 +357,8 @@ public class LaserNodeBE extends BaseLaserBE {
                     }
                 }
             }
-            for (Map.Entry<Byte, Byte> entry : nodeSideCache.myRedstoneFromSensors.byte2ByteEntrySet()) { //Update the temp variable with data from any sensors
-                myRedstoneInTemp.put(entry.getKey(), entry.getValue());
+            for (Byte2ByteMap.Entry entry : nodeSideCache.myRedstoneFromSensors.byte2ByteEntrySet()) { //Update the temp variable with data from any sensors
+                myRedstoneInTemp.put(entry.getByteKey(), entry.getByteValue());
             }
         }
 
@@ -370,8 +381,10 @@ public class LaserNodeBE extends BaseLaserBE {
             if (targetLevel == null) continue;
             LaserNodeBE laserNodeBE = getNodeAt(new GlobalPos(targetLevel.dimension(), getWorldPos(pos.pos())));
             if (laserNodeBE == null) continue;
-            for (Map.Entry<Byte, Byte> entry : laserNodeBE.myRedstoneIn.byte2ByteEntrySet()) {
-                updateRedstoneNetwork(entry.getKey(), entry.getValue());
+            
+            // [修改点] 使用 Byte2ByteMap.Entry 和 getByteKey()/getByteValue()
+            for (Byte2ByteMap.Entry entry : laserNodeBE.myRedstoneIn.byte2ByteEntrySet()) {
+                updateRedstoneNetwork(entry.getByteKey(), entry.getByteValue());
             }
         }
         updateRedstoneOutputs(); //Now that we know what the network should look like - update the outputs
@@ -791,7 +804,7 @@ public class LaserNodeBE extends BaseLaserBE {
             List<ItemStack> itemStacksInChest = inventoryCounts.getItemCounts().values().stream().toList();
             outloop:
             for (ItemStack itemStack : itemStacksInChest) {
-                for (TagKey tagKey : itemStack.getItem().builtInRegistryHolder().tags().toList()) {
+                for (TagKey<Item> tagKey : itemStack.getTags().toList()) {
                     String itemTag = tagKey.location().toString().toLowerCase(Locale.ROOT);
                     if (tags.contains(itemTag)) {
                         tags.remove(itemTag);
@@ -897,7 +910,7 @@ public class LaserNodeBE extends BaseLaserBE {
             outloop:
             for (int tank = 0; tank < adacentTank.getTanks(); tank++) { //Loop through all the tanks
                 FluidStack stackInTank = adacentTank.getFluidInTank(tank);
-                for (TagKey tagKey : stackInTank.getFluid().builtInRegistryHolder().tags().toList()) {
+                for (TagKey<Fluid> tagKey : BuiltInRegistries.FLUID.wrapAsHolder(stackInTank.getFluid()).tags().toList()) {
                     String fluidTag = tagKey.location().toString().toLowerCase(Locale.ROOT);
                     if (tags.contains(fluidTag)) {
                         tags.remove(fluidTag);
@@ -2414,12 +2427,15 @@ public class LaserNodeBE extends BaseLaserBE {
         CompoundTag tag = new CompoundTag();
         saveAdditional(tag, provider);
         ListTag redstoneNetworkTag = new ListTag();
-        for (Map.Entry<Byte, Byte> entry : redstoneNetwork.byte2ByteEntrySet()) {
+        
+        // [修改点] 使用 Byte2ByteMap.Entry 和 getByteKey()/getByteValue()
+        for (Byte2ByteMap.Entry entry : redstoneNetwork.byte2ByteEntrySet()) {
             CompoundTag comp = new CompoundTag();
-            comp.putByte("channel", entry.getKey());
-            comp.putByte("strength", entry.getValue());
+            comp.putByte("channel", entry.getByteKey());
+            comp.putByte("strength", entry.getByteValue());
             redstoneNetworkTag.add(comp);
         }
+        
         tag.put("redstoneNetworkTag", redstoneNetworkTag);
         //System.out.println(redstoneNetworkTag + " at " + getBlockPos());
         return tag;
