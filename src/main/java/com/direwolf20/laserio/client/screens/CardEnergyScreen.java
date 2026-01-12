@@ -7,13 +7,17 @@ import com.direwolf20.laserio.common.LaserIO;
 import com.direwolf20.laserio.common.containers.CardEnergyContainer;
 import com.direwolf20.laserio.common.containers.CardHolderContainer;
 import com.direwolf20.laserio.common.containers.customslot.CardHolderSlot;
+import com.direwolf20.laserio.common.containers.customslot.CardItemSlot;
+import com.direwolf20.laserio.common.containers.customslot.CardOverclockSlot;
 import com.direwolf20.laserio.common.items.cards.BaseCard;
+import com.direwolf20.laserio.common.items.cards.BaseCard.TransferMode;
 import com.direwolf20.laserio.common.items.cards.CardEnergy;
 import com.direwolf20.laserio.common.items.cards.CardRedstone;
 import com.direwolf20.laserio.common.items.upgrades.OverclockerCard;
 import com.direwolf20.laserio.common.network.data.OpenNodePayload;
 import com.direwolf20.laserio.common.network.data.UpdateCardPayload;
 import com.direwolf20.laserio.setup.Config;
+import com.direwolf20.laserio.setup.Registration;
 import com.direwolf20.laserio.util.MiscTools;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -39,27 +43,32 @@ import java.util.List;
 import java.util.Map;
 
 public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContainer> {
-    private final ResourceLocation GUI = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/energycard.png");
+    // 逻辑：如果开启了 SLOTS (Config中有层级)，使用 energycard.png (请确保这张图有槽位)
+    // 如果 SLOTS 为 0，使用 redstonecard.png (这张图通常没有右上角的槽位)
+    private final ResourceLocation GUI = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/" + ((CardEnergyContainer.SLOTS == 0) ? "redstone" : "energy") + "card.png");
     private static final ResourceLocation CARD_HOLDER_GUI = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/cardholder_node.png");
+    
+    // [删除] 不再需要引用 itemcard.png
+    // private static final ResourceLocation ITEM_CARD_GUI = ...
 
-    protected final CardEnergyContainer container;
-    protected byte currentMode;
-    protected byte currentChannel;
-    protected byte currentRedstoneChannel;
-    protected int currentEnergyExtractAmt;
-    protected short currentPriority;
-    protected byte currentSneaky;
-    protected int currentTicks;
-    protected boolean currentExact;
-    protected int currentRoundRobin;
-    protected boolean currentRegulate;
-    protected int currentExtractLimitPercent;
-    protected int currentInsertLimitPercent;
-    protected final ItemStack card;
-    protected Map<String, Button> buttons = new HashMap<>();
-    protected byte currentRedstoneMode;
+    private final CardEnergyContainer container;
+    private byte currentMode;
+    private byte currentChannel;
+    private byte currentRedstoneChannel;
+    private int currentEnergyExtractAmt;
+    private short currentPriority;
+    private byte currentSneaky;
+    private int currentTicks;
+    private boolean currentExact;
+    private int currentRoundRobin;
+    private boolean currentRegulate;
+    private int currentExtractLimitPercent;
+    private int currentInsertLimitPercent;
+    private final ItemStack card;
+    private final Map<String, Button> buttons = new HashMap<>();
+    private byte currentRedstoneMode;
     private boolean showCardHolderUI;
-    private ItemStack lastOverclocker;
+    private ItemStack lastOverclocker = ItemStack.EMPTY;
 
     protected final String[] sneakyNames = {
             "screen.laserio.default",
@@ -76,15 +85,14 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
         this.container = container;
         this.card = container.cardItem;
         this.showCardHolderUI = !container.cardHolder.isEmpty();
+        
+        if (CardEnergyContainer.SLOTS == 1 && container.slots.size() > 0) {
+            lastOverclocker = container.getSlot(0).getItem().copy();
+        }
     }
 
     public boolean isCardHolderUIShown() {
         return showCardHolderUI;
-    }
-
-    @Override
-    protected void renderLabels(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-
     }
 
     @Override
@@ -93,13 +101,15 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
         toggleHolderSlots();
         super.render(guiGraphics, mouseX, mouseY, partialTicks);
         this.renderTooltip(guiGraphics, mouseX, mouseY);
+        
         Button modeButton = buttons.get("mode");
         if (MiscTools.inBounds(modeButton.getX(), modeButton.getY(), modeButton.getWidth(), modeButton.getHeight(), mouseX, mouseY)) {
-            MutableComponent translatableComponents[] = new MutableComponent[4];
-            translatableComponents[0] = Component.translatable("screen.laserio.insert");
-            translatableComponents[1] = Component.translatable("screen.laserio.extract");
-            translatableComponents[2] = Component.translatable("screen.laserio.stock");
-            translatableComponents[3] = Component.translatable("screen.laserio.sensor");
+            MutableComponent[] translatableComponents = {
+                    Component.translatable("screen.laserio.insert"),
+                    Component.translatable("screen.laserio.extract"),
+                    Component.translatable("screen.laserio.stock"),
+                    Component.translatable("screen.laserio.sensor")
+            };
             guiGraphics.renderTooltip(font, translatableComponents[currentMode], mouseX, mouseY);
         }
         Button channelButton = buttons.get("channel");
@@ -113,7 +123,7 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
         }
         Button sneakyButton = buttons.get("sneaky");
         if (MiscTools.inBounds(sneakyButton.getX(), sneakyButton.getY(), sneakyButton.getWidth(), sneakyButton.getHeight(), mouseX, mouseY)) {
-            guiGraphics.renderTooltip(font, Component.translatable(String.valueOf(sneakyNames[currentSneaky + 1])), mouseX, mouseY);
+            guiGraphics.renderTooltip(font, Component.translatable(sneakyNames[currentSneaky + 1]), mouseX, mouseY);
         }
         Button amountButton = buttons.get("amount");
         if (MiscTools.inBounds(amountButton.getX(), amountButton.getY(), amountButton.getWidth(), amountButton.getHeight(), mouseX, mouseY)) {
@@ -133,24 +143,26 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
         Button roundrobin = buttons.get("roundrobin");
         if (MiscTools.inBounds(roundrobin.getX(), roundrobin.getY(), roundrobin.getWidth(), roundrobin.getHeight(), mouseX, mouseY)) {
             if (showRoundRobin()) {
-                MutableComponent translatableComponents[] = new MutableComponent[3];
-                translatableComponents[0] = Component.translatable("screen.laserio.false");
-                translatableComponents[1] = Component.translatable("screen.laserio.true");
-                translatableComponents[2] = Component.translatable("screen.laserio.enforced");
+                MutableComponent[] translatableComponents = {
+                        Component.translatable("screen.laserio.false"),
+                        Component.translatable("screen.laserio.true"),
+                        Component.translatable("screen.laserio.enforced")
+                };
                 guiGraphics.renderTooltip(font, Component.translatable("screen.laserio.roundrobin").append(translatableComponents[currentRoundRobin]), mouseX, mouseY);
             }
         }
         Button redstoneMode = buttons.get("redstoneMode");
         if (MiscTools.inBounds(redstoneMode.getX(), redstoneMode.getY(), redstoneMode.getWidth(), redstoneMode.getHeight(), mouseX, mouseY)) {
-            MutableComponent translatableComponents[] = new MutableComponent[3];
-            translatableComponents[0] = Component.translatable("screen.laserio.ignored");
-            translatableComponents[1] = Component.translatable("screen.laserio.low");
-            translatableComponents[2] = Component.translatable("screen.laserio.high");
+            MutableComponent[] translatableComponents = {
+                    Component.translatable("screen.laserio.ignored"),
+                    Component.translatable("screen.laserio.low"),
+                    Component.translatable("screen.laserio.high")
+            };
             guiGraphics.renderTooltip(font, Component.translatable("screen.laserio.redstoneMode").append(translatableComponents[currentRedstoneMode]), mouseX, mouseY);
         }
         Button exact = buttons.get("exact");
         if (MiscTools.inBounds(exact.getX(), exact.getY(), exact.getWidth(), exact.getHeight(), mouseX, mouseY)) {
-            if (showExactAmt()) { //Exact is the same conditions as ExtractAmt
+            if (showExactAmt()) {
                 guiGraphics.renderTooltip(font, Component.translatable("screen.laserio.exact"), mouseX, mouseY);
             }
         }
@@ -166,25 +178,44 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
         }
     }
 
+    public void toggleHolderSlots() {
+        for (int i = CardEnergyContainer.SLOTS; i < (CardEnergyContainer.SLOTS + CardHolderContainer.SLOTS); i++) {
+            if (i >= container.slots.size()) continue;
+            Slot slot = container.getSlot(i);
+            if (slot instanceof CardHolderSlot cardHolderSlot) {
+                cardHolderSlot.setEnabled(showCardHolderUI);
+            }
+        }
+    }
+
+    @Override
+    protected boolean hasClickedOutside(double mouseX, double mouseY, int guiLeftIn, int guiTopIn, int mouseButton) {
+        if (showCardHolderUI) {
+            return mouseX < (double) guiLeftIn - 100 || mouseY < (double) guiTopIn || mouseX >= (double) (guiLeftIn + this.imageWidth) || mouseY >= (double) (guiTopIn + this.imageHeight);
+        }
+        return super.hasClickedOutside(mouseX, mouseY, guiLeftIn, guiTopIn, mouseButton);
+    }
+
     public void addAmtButton() {
-        buttons.put("amount", new NumberButton(getGuiLeft() + 125, getGuiTop() + 25, 46, 12, currentMode == 0 ? currentPriority : currentEnergyExtractAmt, (button) -> {
+        buttons.put("amount", new NumberButton(this.leftPos + 125, this.topPos + 25, 46, 12, currentMode == 0 ? currentPriority : currentEnergyExtractAmt, (button) -> {
             changeAmount(-1);
         }));
     }
 
     public void addLimitButton() {
-        buttons.put("limit", new NumberButton(getGuiLeft() + 147, getGuiTop() + 53, 24, 12, showExtractLimit() ? currentExtractLimitPercent : currentInsertLimitPercent, (button) -> {
+        buttons.put("limit", new NumberButton(this.leftPos + 147, this.topPos + 53, 24, 12, showExtractLimit() ? currentExtractLimitPercent : currentInsertLimitPercent, (button) -> {
             changeLimitAmount(-1);
         }));
     }
 
     public void addModeButton() {
-        ResourceLocation[] modeTextures = new ResourceLocation[4];
-        modeTextures[0] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/modeinserter.png");
-        modeTextures[1] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/modeextractor.png");
-        modeTextures[2] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/modestocker.png");
-        modeTextures[3] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/modesensor.png");
-        buttons.put("mode", new ToggleButton(getGuiLeft() + 5, getGuiTop() + 5, 16, 16, modeTextures, currentMode, (button) -> {
+        ResourceLocation[] modeTextures = {
+                ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/modeinserter.png"),
+                ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/modeextractor.png"),
+                ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/modestocker.png"),
+                ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/modesensor.png")
+        };
+        buttons.put("mode", new ToggleButton(this.leftPos + 5, this.topPos + 5, 16, 16, modeTextures, currentMode, (button) -> {
             currentMode = BaseCard.nextTransferMode(card);
             ((ToggleButton) button).setTexturePosition(currentMode);
             ((NumberButton) buttons.get("amount")).setValue(currentMode == 0 ? currentPriority : currentEnergyExtractAmt);
@@ -194,18 +225,19 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
     }
 
     public void addRedstoneButton() {
-        ResourceLocation[] redstoneTextures = new ResourceLocation[3];
-        redstoneTextures[0] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/redstoneignore.png");
-        redstoneTextures[1] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/redstonelow.png");
-        redstoneTextures[2] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/redstonehigh.png");
-        buttons.put("redstoneMode", new ToggleButton(getGuiLeft() + 105, getGuiTop() + 5, 16, 16, redstoneTextures, currentRedstoneMode, (button) -> {
+        ResourceLocation[] redstoneTextures = {
+                ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/redstoneignore.png"),
+                ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/redstonelow.png"),
+                ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/redstonehigh.png")
+        };
+        buttons.put("redstoneMode", new ToggleButton(this.leftPos + 105, this.topPos + 5, 16, 16, redstoneTextures, currentRedstoneMode, (button) -> {
             currentRedstoneMode = (byte) (currentRedstoneMode == 2 ? 0 : currentRedstoneMode + 1);
             ((ToggleButton) button).setTexturePosition(currentRedstoneMode);
         }));
     }
 
     public void addRedstoneChannelButton() {
-        buttons.put("redstoneChannel", new ChannelButton(getGuiLeft() + 125, getGuiTop() + 5, 16, 16, currentRedstoneChannel, (button) -> {
+        buttons.put("redstoneChannel", new ChannelButton(this.leftPos + 125, this.topPos + 5, 16, 16, currentRedstoneChannel, (button) -> {
             currentRedstoneChannel = CardRedstone.nextRedstoneChannel(card);
             ((ChannelButton) button).setChannel(currentRedstoneChannel);
         }));
@@ -227,35 +259,43 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
         currentInsertLimitPercent = CardEnergy.getInsertLimitPercent(card);
         currentRedstoneMode = CardEnergy.getRedstoneMode(card);
         currentRedstoneChannel = BaseCard.getRedstoneChannel(card);
+        showCardHolderUI = !container.cardHolder.isEmpty();
+
+        if (CardEnergyContainer.SLOTS == 1 && container.slots.size() > 0) {
+            lastOverclocker = container.getSlot(0).getItem();
+        }
 
         addAmtButton();
         addLimitButton();
 
-        buttons.put("speed", new NumberButton(getGuiLeft() + 147, getGuiTop() + 39, 24, 12, currentTicks, (button) -> {
+        buttons.put("speed", new NumberButton(this.leftPos + 147, this.topPos + 39, 24, 12, currentTicks, (button) -> {
             changeTick(-1);
         }));
 
-        ResourceLocation[] exactTextures = new ResourceLocation[2];
-        exactTextures[0] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/exactfalse.png");
-        exactTextures[1] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/exacttrue.png");
-        buttons.put("exact", new ToggleButton(getGuiLeft() + 25, getGuiTop() + 25, 16, 16, exactTextures, currentExact ? 1 : 0, (button) -> {
+        ResourceLocation[] exactTextures = {
+                ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/exactfalse.png"),
+                ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/exacttrue.png")
+        };
+        buttons.put("exact", new ToggleButton(this.leftPos + 25, this.topPos + 25, 16, 16, exactTextures, currentExact ? 1 : 0, (button) -> {
             currentExact = !currentExact;
             ((ToggleButton) button).setTexturePosition(currentExact ? 1 : 0);
         }));
 
-        ResourceLocation[] roundRobinTextures = new ResourceLocation[3];
-        roundRobinTextures[0] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/roundrobinfalse.png");
-        roundRobinTextures[1] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/roundrobintrue.png");
-        roundRobinTextures[2] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/roundrobinenforced.png");
-        buttons.put("roundrobin", new ToggleButton(getGuiLeft() + 5, getGuiTop() + 25, 16, 16, roundRobinTextures, currentRoundRobin, (button) -> {
+        ResourceLocation[] roundRobinTextures = {
+                ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/roundrobinfalse.png"),
+                ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/roundrobintrue.png"),
+                ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/roundrobinenforced.png")
+        };
+        buttons.put("roundrobin", new ToggleButton(this.leftPos + 5, this.topPos + 25, 16, 16, roundRobinTextures, currentRoundRobin, (button) -> {
             currentRoundRobin = currentRoundRobin == 2 ? 0 : currentRoundRobin + 1;
             ((ToggleButton) button).setTexturePosition(currentRoundRobin);
         }));
 
-        ResourceLocation[] regulateTextures = new ResourceLocation[2];
-        regulateTextures[0] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/regulatefalse.png");
-        regulateTextures[1] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/regulatetrue.png");
-        buttons.put("regulate", new ToggleButton(getGuiLeft() + 5, getGuiTop() + 25, 16, 16, regulateTextures, currentRegulate ? 1 : 0, (button) -> {
+        ResourceLocation[] regulateTextures = {
+                ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/regulatefalse.png"),
+                ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/regulatetrue.png")
+        };
+        buttons.put("regulate", new ToggleButton(this.leftPos + 5, this.topPos + 25, 16, 16, regulateTextures, currentRegulate ? 1 : 0, (button) -> {
             currentRegulate = !currentRegulate;
             ((ToggleButton) button).setTexturePosition(currentRegulate ? 1 : 0);
         }));
@@ -264,26 +304,27 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
         addRedstoneButton();
         addRedstoneChannelButton();
 
-        buttons.put("channel", new ChannelButton(getGuiLeft() + 5, getGuiTop() + 65, 16, 16, currentChannel, (button) -> {
+        buttons.put("channel", new ChannelButton(this.leftPos + 5, this.topPos + 65, 16, 16, currentChannel, (button) -> {
             currentChannel = BaseCard.nextChannel(card);
             ((ChannelButton) button).setChannel(currentChannel);
         }));
 
-        ResourceLocation[] sneakyTextures = new ResourceLocation[7];
-        sneakyTextures[0] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/sneaky.png");
-        sneakyTextures[1] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/sneaky-down.png");
-        sneakyTextures[2] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/sneaky-up.png");
-        sneakyTextures[3] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/sneaky-north.png");
-        sneakyTextures[4] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/sneaky-south.png");
-        sneakyTextures[5] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/sneaky-west.png");
-        sneakyTextures[6] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/sneaky-east.png");
-        buttons.put("sneaky", new ToggleButton(getGuiLeft() + 25, getGuiTop() + 5, 16, 16, sneakyTextures, currentSneaky + 1, (button) -> {
+        ResourceLocation[] sneakyTextures = {
+                ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/sneaky.png"),
+                ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/sneaky-down.png"),
+                ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/sneaky-up.png"),
+                ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/sneaky-north.png"),
+                ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/sneaky-south.png"),
+                ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/sneaky-west.png"),
+                ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/sneaky-east.png")
+        };
+        buttons.put("sneaky", new ToggleButton(this.leftPos + 25, this.topPos + 5, 16, 16, sneakyTextures, currentSneaky + 1, (button) -> {
             currentSneaky = BaseCard.nextSneaky(card);
             ((ToggleButton) button).setTexturePosition(currentSneaky + 1);
         }));
 
         if (container.direction != -1) {
-            buttons.put("return", new ExtendedButton(getGuiLeft() - 25, getGuiTop() + 1, 25, 20, Component.literal("<--"), (button) -> {
+            buttons.put("return", new ExtendedButton(this.leftPos - 25, this.topPos + 1, 25, 20, Component.literal("<--"), (button) -> {
                 openNode();
             }));
         }
@@ -292,10 +333,15 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
             addRenderableWidget(button.getValue());
         }
 
-        if (CardEnergyContainer.SLOTS == 1 && container.slots.size() > 0) {
-            lastOverclocker = container.getSlot(0).getItem().copy();
-        } else {
-            lastOverclocker = ItemStack.EMPTY;
+        if (card.getCount() > 1) {
+            for (int i = 0; i < CardEnergyContainer.SLOTS; i++) {
+                if (i >= container.slots.size()) continue;
+                Slot slot = container.getSlot(i);
+                if (slot instanceof CardItemSlot cardItemSlot)
+                    cardItemSlot.setEnabled(false);
+                if (slot instanceof CardOverclockSlot cardOverclockSlot)
+                    cardOverclockSlot.setEnabled(false);
+            }
         }
 
         modeChange();
@@ -352,14 +398,18 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
     }
 
     public void changeAmount(int change) {
-        if (Screen.hasShiftDown()) change *= 10;
-        if (Screen.hasControlDown()) change *= 100;
-        int max = Config.MAX_FE_TICK.get();
+        if (hasShiftDown()) change *= 10;
+        if (hasControlDown()) change *= 100;
+        if (hasAltDown()) change *= 1000;
+        int max = Config.MAX_FE_NO_TIERS.get();
+        if (CardEnergyContainer.SLOTS == 1 && container.getSlot(0).hasItem() && container.getSlot(0).getItem().getItem() instanceof OverclockerCard card) {
+            max = Config.MAX_FE_TIERS.get().get(card.getEnergyTier() - 1);
+        }
         if (change < 0) {
             if (currentMode == 0) {
                 currentPriority = (short) (Math.max(currentPriority + change, -4096));
             } else {
-                currentEnergyExtractAmt = (Math.max(currentEnergyExtractAmt + change, 100));
+                currentEnergyExtractAmt = (Math.max(currentEnergyExtractAmt + change, 1));
             }
         } else {
             if (currentMode == 0) {
@@ -371,8 +421,8 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
     }
 
     public void changeLimitAmount(int change) {
-        if (Screen.hasShiftDown()) change *= 10;
-        if (Screen.hasControlDown()) change *= 100;
+        if (hasShiftDown()) change *= 10;
+        if (hasControlDown()) change *= 100;
         if (change < 0) {
             if (showExtractLimit()) {
                 currentExtractLimitPercent = Math.max(currentExtractLimitPercent + change, 0);
@@ -389,39 +439,45 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
     }
 
     public void changeTick(int change) {
-        if (Screen.hasShiftDown()) change *= 10;
-        if (Screen.hasControlDown()) change *= 64;
+        if (hasShiftDown()) change *= 10;
+        if (hasControlDown()) change *= 100;
         if (change < 0) {
-            currentTicks = (Math.max(currentTicks + change, 1));
+            currentTicks = (Math.max(currentTicks + change, Config.MIN_TICKS_ENERGY.get()));
         } else {
             currentTicks = (Math.min(currentTicks + change, 1200));
         }
     }
 
     private boolean showExtractAmt() {
-        return card.getItem() instanceof BaseCard && BaseCard.getNamedTransferMode(card) != BaseCard.TransferMode.INSERT;
+        return card.getItem() instanceof BaseCard && BaseCard.getNamedTransferMode(card) != TransferMode.INSERT;
     }
 
     private boolean showExactAmt() {
-        return card.getItem() instanceof BaseCard && BaseCard.getNamedTransferMode(card) != BaseCard.TransferMode.INSERT;
+        return card.getItem() instanceof BaseCard && BaseCard.getNamedTransferMode(card) != TransferMode.INSERT;
     }
 
     private boolean showPriority() {
-        return card.getItem() instanceof BaseCard && BaseCard.getNamedTransferMode(card) == BaseCard.TransferMode.INSERT;
+        return card.getItem() instanceof BaseCard && BaseCard.getNamedTransferMode(card) == TransferMode.INSERT;
     }
 
     private boolean showRegulate() {
-        return card.getItem() instanceof BaseCard && BaseCard.getNamedTransferMode(card) == BaseCard.TransferMode.STOCK;
+        return card.getItem() instanceof BaseCard && BaseCard.getNamedTransferMode(card) == TransferMode.STOCK;
     }
 
     private boolean showRoundRobin() {
-        return card.getItem() instanceof BaseCard && BaseCard.getNamedTransferMode(card) == BaseCard.TransferMode.EXTRACT;
+        return card.getItem() instanceof BaseCard && BaseCard.getNamedTransferMode(card) == TransferMode.EXTRACT;
     }
 
     private boolean showExtractLimit() {
-        return card.getItem() instanceof BaseCard && BaseCard.getNamedTransferMode(card) == BaseCard.TransferMode.EXTRACT;
+        return card.getItem() instanceof BaseCard && BaseCard.getNamedTransferMode(card) == TransferMode.EXTRACT;
     }
 
+    @Override
+    protected void renderLabels(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+
+    }
+
+    // [核心修改] 移除了手动 blit 的代码
     @Override
     protected void renderBg(GuiGraphics guiGraphics, float partialTicks, int mouseX, int mouseY) {
         RenderSystem.setShaderTexture(0, GUI);
@@ -431,30 +487,8 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
 
         if (showCardHolderUI) {
             RenderSystem.setShaderTexture(0, CARD_HOLDER_GUI);
-            guiGraphics.blit(CARD_HOLDER_GUI, getGuiLeft() - 100, getGuiTop() + 24, 0, 0, this.imageWidth, this.imageHeight);
+            guiGraphics.blit(CARD_HOLDER_GUI, this.leftPos - 100, this.topPos + 24, 0, 0, this.imageWidth, this.imageHeight);
         }
-    }
-
-    public void toggleHolderSlots() {
-        for (int i = CardEnergyContainer.SLOTS; i < (CardEnergyContainer.SLOTS + CardHolderContainer.SLOTS); i++) {
-            if (i >= container.slots.size()) continue;
-            Slot slot = container.getSlot(i);
-            if (slot instanceof CardHolderSlot cardHolderSlot) {
-                cardHolderSlot.setEnabled(showCardHolderUI);
-            }
-        }
-    }
-
-    @Override
-    protected boolean hasClickedOutside(double mouseX, double mouseY, int guiLeftIn, int guiTopIn, int mouseButton) {
-        if (showCardHolderUI)
-            return mouseX < (double) guiLeftIn - 100 || mouseY < (double) guiTopIn || mouseX >= (double) (guiLeftIn + this.imageWidth) || mouseY >= (double) (guiTopIn + this.imageHeight);
-        return super.hasClickedOutside(mouseX, mouseY, guiLeftIn, guiTopIn, mouseButton);
-    }
-
-    @Override
-    public boolean isPauseScreen() {
-        return false;
     }
 
     @Override
@@ -468,33 +502,16 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
         InputConstants.Key mouseKey = InputConstants.getKey(p_keyPressed_1_, p_keyPressed_2_);
         if (p_keyPressed_1_ == 256 || minecraft.options.keyInventory.isActiveAndMatches(mouseKey)) {
             onClose();
-
             return true;
         }
-
         return super.keyPressed(p_keyPressed_1_, p_keyPressed_2_, p_keyPressed_3_);
     }
 
-
-    public boolean mouseReleased(double p_mouseReleased_1_, double p_mouseReleased_3_, int p_mouseReleased_5_) {
-        return super.mouseReleased(p_mouseReleased_1_, p_mouseReleased_3_, p_mouseReleased_5_);
-    }
-
-    @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta, double deltaY) {
-        return super.mouseScrolled(mouseX, mouseY, delta, deltaY);
-    }
-
-    private static MutableComponent getTrans(String key, Object... args) {
-        return Component.translatable(LaserIO.MODID + "." + key, args);
-    }
-
     public void setExtract(NumberButton amountButton, int btn) {
-        int change = currentMode == 0 ? 1 : 100;
         if (btn == 0)
-            changeAmount(change);
+            changeAmount(1);
         else if (btn == 1)
-            changeAmount(change * -1);
+            changeAmount(-1);
         amountButton.setValue(currentMode == 0 ? currentPriority : currentEnergyExtractAmt);
         amountButton.playDownSound(Minecraft.getInstance().getSoundManager());
     }
@@ -509,7 +526,7 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
     }
 
     public void saveSettings() {
-        PacketDistributor.sendToServer(new UpdateCardPayload(currentMode, currentChannel, currentEnergyExtractAmt, currentPriority, currentSneaky, (short) currentTicks, currentExact, currentRegulate, (byte) currentRoundRobin, currentExtractLimitPercent, currentInsertLimitPercent, currentRedstoneMode, currentRedstoneChannel, false, (byte) 0 /* TODO: Allow backoff for energy extractors */));
+        PacketDistributor.sendToServer(new UpdateCardPayload(currentMode, currentChannel, currentEnergyExtractAmt, currentPriority, currentSneaky, (short) currentTicks, currentExact, currentRegulate, (byte) currentRoundRobin, currentExtractLimitPercent, currentInsertLimitPercent, currentRedstoneMode, currentRedstoneChannel, false, (byte) 0));
     }
 
     public void openNode() {
@@ -521,7 +538,7 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
     @Override
     public boolean mouseClicked(double x, double y, int btn) {
         ChannelButton channelButton = ((ChannelButton) buttons.get("channel"));
-        if ((currentMode != 3) && MiscTools.inBounds(channelButton.getX(), channelButton.getY(), channelButton.getWidth(), channelButton.getHeight(), x, y)) {
+        if (currentMode != 3 && MiscTools.inBounds(channelButton.getX(), channelButton.getY(), channelButton.getWidth(), channelButton.getHeight(), x, y)) {
             if (btn == 0)
                 currentChannel = BaseCard.nextChannel(card);
             else if (btn == 1)
@@ -553,7 +570,7 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
             return true;
         }
         NumberButton amountButton = ((NumberButton) buttons.get("amount"));
-        if (MiscTools.inBounds(amountButton.getX(), amountButton.getY(), amountButton.getWidth(), amountButton.getHeight(), x, y)) {
+        if (currentMode != 3 && MiscTools.inBounds(amountButton.getX(), amountButton.getY(), amountButton.getWidth(), amountButton.getHeight(), x, y)) {
             setExtract(amountButton, btn);
             return true;
         }
@@ -562,9 +579,8 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
             setLimitExtract(limitButton, btn);
             return true;
         }
-
         NumberButton speedButton = ((NumberButton) buttons.get("speed"));
-        if (MiscTools.inBounds(speedButton.getX(), speedButton.getY(), speedButton.getWidth(), speedButton.getHeight(), x, y)) {
+        if (currentMode != 0 && MiscTools.inBounds(speedButton.getX(), speedButton.getY(), speedButton.getWidth(), speedButton.getHeight(), x, y)) {
             if (btn == 0)
                 changeTick(1);
             else if (btn == 1)
@@ -573,25 +589,22 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
             speedButton.playDownSound(Minecraft.getInstance().getSoundManager());
             return true;
         }
-
         return super.mouseClicked(x, y, btn);
     }
 
     @Override
     protected void slotClicked(Slot slot, int inventorySlotIndex, int depositedAmount, ClickType clickType) {
         super.slotClicked(slot, inventorySlotIndex, depositedAmount, clickType);
-        if (CardEnergyContainer.SLOTS != 1) {
-            return;
-        }
+        
+        if (CardEnergyContainer.SLOTS != 1) return;
+        if (container.slots.size() <= 0) return;
 
         ItemStack newOverclocker = container.getSlot(0).getItem();
-        if (ItemStack.isSameItem(newOverclocker, lastOverclocker)) {
-            return;
-        }
+        if (ItemStack.isSameItem(newOverclocker, lastOverclocker)) return;
 
         int max = Config.MAX_FE_NO_TIERS.get();
-        if (!newOverclocker.isEmpty() && newOverclocker.getItem() instanceof OverclockerCard) {
-            int energyTier = newOverclocker.getCount();
+        if (!newOverclocker.isEmpty() && newOverclocker.getItem() instanceof OverclockerCard card) {
+            int energyTier = card.getEnergyTier();
             List<? extends Integer> tiers = Config.MAX_FE_TIERS.get();
             if (energyTier > 0 && energyTier <= tiers.size()) {
                 max = tiers.get(energyTier - 1);

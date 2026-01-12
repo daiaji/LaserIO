@@ -71,6 +71,18 @@ java {
     }
 }
 
+// [修改位置] 将强制解决冲突的代码移到这里（Dependencies 之前）
+// 强制解决 ASM 版本冲突 (Jar Hell)
+configurations.all {
+    resolutionStrategy {
+        force 'org.ow2.asm:asm:9.7'
+        force 'org.ow2.asm:asm-tree:9.7'
+        force 'org.ow2.asm:asm-commons:9.7'
+        force 'org.ow2.asm:asm-util:9.7'
+        force 'org.ow2.asm:asm-analysis:9.7'
+    }
+}
+
 //minecraft.accessTransformers.entry public net.minecraft.client.Minecraft textureManager # textureManager
 
 // Default run configurations.
@@ -150,9 +162,9 @@ dependencies {
 
     // [修改] Curios 依赖 (已启用)
     // 编译时依赖 API
-    compileOnly "top.theillusivec4.curios:curios-neoforge:9.5.0+1.21.1"
+    compileOnly "top.theillusivec4.curios:curios-neoforge:9.5.1+1.21.1"
     // 运行时加载完整模组 (方便测试 runClient)
-    runtimeOnly "top.theillusivec4.curios:curios-neoforge:9.5.0+1.21.1"
+    runtimeOnly "top.theillusivec4.curios:curios-neoforge:9.5.1+1.21.1"
 
     // [可选] Oculus (如果需要测试渲染兼容性，请自行替换 fileID)
     // runtimeOnly "curse.maven:oculus-581495:xxxxxxx"

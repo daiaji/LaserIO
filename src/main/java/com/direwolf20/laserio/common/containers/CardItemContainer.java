@@ -6,13 +6,13 @@ import com.direwolf20.laserio.common.containers.customhandler.FilterBasicHandler
 import com.direwolf20.laserio.common.containers.customhandler.FilterCountHandler;
 import com.direwolf20.laserio.common.containers.customslot.CardHolderSlot;
 import com.direwolf20.laserio.common.containers.customslot.CardItemSlot;
-import com.direwolf20.laserio.common.containers.customslot.CardOverclockSlot;
 import com.direwolf20.laserio.common.containers.customslot.FilterBasicSlot;
 import com.direwolf20.laserio.common.items.CardHolder;
 import com.direwolf20.laserio.common.items.cards.BaseCard;
 import com.direwolf20.laserio.common.items.filters.BaseFilter;
 import com.direwolf20.laserio.common.items.filters.FilterBasic;
 import com.direwolf20.laserio.common.items.filters.FilterCount;
+import com.direwolf20.laserio.common.items.upgrades.OverclockerCard;
 import com.direwolf20.laserio.setup.Registration;
 import com.direwolf20.laserio.util.CardHolderItemStackHandler;
 import net.minecraft.core.BlockPos;
@@ -138,7 +138,7 @@ public class CardItemContainer extends AbstractContainerMenu {
                 }
             }
         }
-        //The below ensures that when you nake a change to the filter data ,it gets saved to the card's Data Components
+        //The below ensures that when you make a change to the filter data ,it gets saved to the card's Data Components
         if (!ItemStack.isSameItemSameComponents(handler.getStackInSlot(0), filterHandler.stack))
             handler.setStackInSlot(0, filterHandler.stack);
         if (sourceContainer.equals(BlockPos.ZERO))
@@ -320,16 +320,30 @@ public class CardItemContainer extends AbstractContainerMenu {
 
     protected int addSlotRange(IItemHandler handler, int index, int x, int y, int amount, int dx) {
         for (int i = 0; i < amount; i++) {
-            if (handler instanceof CardItemHandler && index == 0)
+            if (handler instanceof CardItemHandler && index == 0) {
+                // 槽位 0: 过滤器槽位
                 addSlot(new CardItemSlot(handler, this, index, x, y));
-            else if (handler instanceof CardItemHandler && index == 1)
-                addSlot(new CardOverclockSlot(handler, index, x, y));
-            else if (handler instanceof FilterBasicHandler)
+            } else if (handler instanceof CardItemHandler && index == 1) {
+                // [修改] 槽位 1: 物品卡超频槽位
+                // 使用匿名类允许放入任意 OverclockerCard (包括 Tier -1) 并且允许堆叠
+                addSlot(new SlotItemHandler(handler, index, x, y) {
+                    @Override
+                    public boolean mayPlace(ItemStack stack) {
+                        return stack.getItem() instanceof OverclockerCard;
+                    }
+
+                    @Override
+                    public int getMaxStackSize() {
+                        return 4;
+                    }
+                });
+            } else if (handler instanceof FilterBasicHandler) {
                 addSlot(new FilterBasicSlot(handler, index, x, y, slots.get(0).getItem().getItem() instanceof FilterCount));
-            else if (handler != null && (handler.getSlots() == CardHolderContainer.SLOTS))
+            } else if (handler != null && (handler.getSlots() == CardHolderContainer.SLOTS)) {
                 addSlot(new CardHolderSlot(handler, index, x, y));
-            else
+            } else {
                 addSlot(new SlotItemHandler(handler, index, x, y));
+            }
             x += dx;
             index++;
         }

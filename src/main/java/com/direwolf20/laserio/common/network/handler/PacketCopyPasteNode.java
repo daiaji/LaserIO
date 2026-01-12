@@ -2,12 +2,16 @@ package com.direwolf20.laserio.common.network.handler;
 
 import com.direwolf20.laserio.common.blockentities.LaserNodeBE;
 import com.direwolf20.laserio.common.blocks.LaserNode;
+import com.direwolf20.laserio.common.containers.CardEnergyContainer;
+import com.direwolf20.laserio.common.containers.CardItemContainer;
+import com.direwolf20.laserio.common.containers.customhandler.CardItemHandler;
 import com.direwolf20.laserio.common.items.CardCloner;
 import com.direwolf20.laserio.common.items.CardHolder;
+import com.direwolf20.laserio.common.items.cards.BaseCard;
+import com.direwolf20.laserio.common.items.cards.CardEnergy;
 import com.direwolf20.laserio.common.network.data.CopyPasteNodePayload;
 import com.direwolf20.laserio.setup.LaserIODataComponents;
 import com.direwolf20.laserio.util.CardHolderItemStackHandler;
-import com.direwolf20.laserio.util.ItemHandlerUtil.InventoryCardCounts;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -16,13 +20,17 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.item.ItemEntity;
-import net.minecraft.world.item.Item;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.neoforged.neoforge.capabilities.Capabilities;
+import net.neoforged.neoforge.items.IItemHandler;
+import net.neoforged.neoforge.items.ItemStackHandler;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 import java.awt.Color;
+import java.util.ArrayList;
+import java.util.List;
 
 public class PacketCopyPasteNode {
     public static final PacketCopyPasteNode INSTANCE = new PacketCopyPasteNode();
@@ -55,11 +63,12 @@ public class PacketCopyPasteNode {
                 tag.putInt("x", pos.getX());
                 tag.putInt("y", pos.getY());
                 tag.putInt("z", pos.getZ());
-                
                 tag.putString("dimension", player.level().dimension().location().toShortLanguageKey());
+                
                 clonerStack.set(LaserIODataComponents.CLONER_NODE_DATA, tag);
                 player.level().playSound(null, player.blockPosition(), SoundEvents.UI_CARTOGRAPHY_TABLE_TAKE_RESULT, SoundSource.PLAYERS, 1.0f, 1.0f);
                 player.displayClientMessage(Component.translatable("message.laserio.card_cloner.node_copied"), true);
+                
             } else if (payload.mode() == 2) { // PASTE
                 CompoundTag nodeData = clonerStack.getOrDefault(LaserIODataComponents.CLONER_NODE_DATA, new CompoundTag());
                 if (nodeData.isEmpty()) {
@@ -79,46 +88,83 @@ public class PacketCopyPasteNode {
                         player.level().playSound(null, pos, SoundEvents.ENCHANTMENT_TABLE_USE, SoundSource.PLAYERS, 1.0f, 1.0f);
                     }
                 } else {
-                    // [修复] 使用静态方法 findFirstCardHolder，且参数正确
+                    // === 1. 准备阶段 ===
                     ItemStack cardHolder = LaserNode.findFirstCardHolder(player);
                     
-                    InventoryCardCounts neededItems = CardCloner.getCopiedNodeContents(clonerStack, player.registryAccess());
+                    // 解析克隆器数据，列出所有需要填充的物品清单 (卡片 + 节点超频)
+                    List<ItemStack> requiredItems = new ArrayList<>();
                     
-                    InventoryCardCounts existingItems = new InventoryCardCounts();
-                    // [修复] 使用 NeoForge 1.21 新的 Capability API (通过 Level 获取)
-                    for (Direction direction : Direction.values()) {
-                        var handler = player.level().getCapability(Capabilities.ItemHandler.BLOCK, pos, direction);
-                        if (handler != null) {
-                            existingItems.addHandler(handler, true);
-                        }
-                    }
-                    
-                    existingItems.subtractInventoryCardCounts(neededItems);
-
-                    boolean enoughItems = true;
-                    if (existingItems.hasNegativeValues()) {
-                        if (!cardHolder.isEmpty()) {
-                            InventoryCardCounts totalExisting = existingItems.clone();
-                            InventoryCardCounts holderCounts = new InventoryCardCounts(new CardHolderItemStackHandler(27, cardHolder), false);
-                            totalExisting.addInventoryCardCounts(holderCounts);
-                            enoughItems = !totalExisting.hasNegativeValues();
-                        } else {
-                            enoughItems = false;
+                    // 1.1 解析卡片 (Inventory0 - Inventory5)
+                    for (int i = 0; i < Direction.values().length; i++) {
+                        if (nodeData.contains("Inventory" + i)) {
+                            ItemStackHandler handler = new ItemStackHandler(9);
+                            handler.deserializeNBT(player.registryAccess(), nodeData.getCompound("Inventory" + i));
+                            for (int slot = 0; slot < handler.getSlots(); slot++) {
+                                ItemStack stack = handler.getStackInSlot(slot);
+                                if (!stack.isEmpty()) {
+                                    requiredItems.add(stack.copy());
+                                }
+                            }
                         }
                     }
 
-                    if (enoughItems) {
-                        transferItems(existingItems.getCardCounts(), existingItems, cardHolder, player);
-                        transferItems(existingItems.getCardModifierCounts(), existingItems, cardHolder, player);
+                    // 1.2 [修正逻辑] 解析节点超频插件 (如果存在)
+                    // 注意：LaserNodeBE 实际上将超频插件存储在各个面的 Slot 9 中 (InventoryX)，而不是独立的 "inv" 标签。
+                    // 但如果 NBT 数据中确实包含 "inv" (可能来自旧版本或 BaseBE)，尝试解析它以保持兼容性。
+                    // 如果 LaserNodeBE 不使用 inv，这部分代码实际上可能不会匹配到任何东西，或者只是冗余检查。
+                    if (nodeData.contains("inv")) {
+                        ItemStackHandler ocHandler = new ItemStackHandler(3);
+                        ocHandler.deserializeNBT(player.registryAccess(), nodeData.getCompound("inv"));
+                        for (int i = 0; i < ocHandler.getSlots(); i++) {
+                            ItemStack stack = ocHandler.getStackInSlot(i);
+                            if (!stack.isEmpty()) {
+                                requiredItems.add(stack.copy());
+                            }
+                        }
+                    }
 
+                    // === 2. 模拟扣费检查 ===
+                    Inventory simPlayerInv = new Inventory(player);
+                    simPlayerInv.replaceWith(player.getInventory());
+                    ItemStack simCardHolder = cardHolder.copy();
+                    
+                    boolean canAfford = true;
+                    for (ItemStack req : requiredItems) {
+                        if (!simulateConsume(req, simCardHolder, simPlayerInv)) {
+                            canAfford = false;
+                            break;
+                        }
+                    }
+
+                    if (canAfford) {
+                        // === 3. 执行阶段 ===
+
+                        // A. 清空当前节点 (Dump)
+                        // A.1 清空 6 个面的卡片 (包括 Slot 9 的超频插件)
+                        for (Direction direction : Direction.values()) {
+                            IItemHandler handler = player.level().getCapability(Capabilities.ItemHandler.BLOCK, pos, direction);
+                            if (handler != null) {
+                                dumpHandler(handler, cardHolder, player);
+                            }
+                        }
+                        
+                        // A.2 [已删除] 删除对不存在的 laserNode.handler 的访问
+                        // LaserNodeBE 不包含公开的 handler 字段。超频插件存储在上述的侧面 Inventory 中。
+
+                        // B. 粘贴数据
                         CompoundTag pasteTag = nodeData.copy();
                         pasteTag.remove("x");
                         pasteTag.remove("y");
                         pasteTag.remove("z");
                         pasteTag.remove("id");
-
                         laserNode.loadAdditional(pasteTag, player.registryAccess());
                         laserNode.updateThisNode();
+
+                        // C. 真实扣费
+                        for (ItemStack req : requiredItems) {
+                            executeConsume(req, cardHolder, player.getInventory());
+                        }
+
                         player.displayClientMessage(Component.translatable("message.laserio.card_cloner.node_contents_pasted"), true);
                         player.level().playSound(null, pos, SoundEvents.ENCHANTMENT_TABLE_USE, SoundSource.PLAYERS, 1.0f, 1.0f);
                     } else {
@@ -130,31 +176,159 @@ public class PacketCopyPasteNode {
         });
     }
 
-    private void transferItems(it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap<Item> itemCounts, InventoryCardCounts inventoryCardCounts, ItemStack cardHolder, ServerPlayer player) {
-        itemCounts.object2IntEntrySet().forEach(entry -> {
-            Item item = entry.getKey();
-            int quantity = entry.getIntValue();
-
-            if (quantity < 0) {
-                int toTake = Math.abs(quantity);
-                ItemStack neededStack = new ItemStack(item, toTake);
-                CardHolder.extractCard(cardHolder, neededStack, false);
-            } else if (quantity > 0) {
-                while (quantity > 0) {
-                    int stackSize = Math.min(quantity, 64);
-                    ItemStack toAdd = new ItemStack(item, stackSize);
-                    quantity -= stackSize;
-
-                    if (!cardHolder.isEmpty()) {
-                        toAdd = CardHolder.addCardToInventory(cardHolder, toAdd);
-                    }
-
-                    if (!toAdd.isEmpty()) {
-                        ItemEntity itementity = new ItemEntity(player.level(), player.getX(), player.getY(), player.getZ(), toAdd);
-                        player.level().addFreshEntity(itementity);
+    // 辅助方法：清空 Handler 并返还物品
+    private void dumpHandler(IItemHandler handler, ItemStack cardHolder, ServerPlayer player) {
+        for (int i = 0; i < handler.getSlots(); i++) {
+            ItemStack stack = handler.getStackInSlot(i);
+            if (!stack.isEmpty()) {
+                ItemStack remainder = stack.copy(); // Copy to safeguard
+                // 1. 尝试放入卡包
+                if (!cardHolder.isEmpty()) {
+                    remainder = CardHolder.addCardToInventory(cardHolder, remainder);
+                }
+                // 2. 尝试放入玩家背包
+                if (!remainder.isEmpty()) {
+                    if (player.getInventory().add(remainder)) {
+                        remainder = ItemStack.EMPTY;
                     }
                 }
+                // 3. 掉落
+                if (!remainder.isEmpty()) {
+                    ItemEntity itementity = new ItemEntity(player.level(), player.getX(), player.getY(), player.getZ(), remainder);
+                    player.level().addFreshEntity(itementity);
+                }
+                // 清空槽位 (如果是 IItemHandlerModifiable 则使用 setStackInSlot，否则 extract)
+                handler.extractItem(i, stack.getCount(), false);
             }
-        });
+        }
+    }
+
+    /**
+     * 智能扣费策略：
+     * 1. 优先寻找 Exact Match (物品 + NBT 完全一致的成品卡)
+     * 2. 其次寻找 Raw Materials (白板卡 + 内部包含的 Filter/Overclocker)
+     */
+    private boolean simulateConsume(ItemStack target, ItemStack cardHolder, Inventory playerInv) {
+        if (findExactMatch(target, cardHolder, playerInv, true)) {
+            return true;
+        }
+        return findRawMaterials(target, cardHolder, playerInv, true);
+    }
+
+    private void executeConsume(ItemStack target, ItemStack cardHolder, Inventory playerInv) {
+        if (findExactMatch(target, cardHolder, playerInv, false)) {
+            return;
+        }
+        findRawMaterials(target, cardHolder, playerInv, false);
+    }
+
+    private boolean findExactMatch(ItemStack target, ItemStack cardHolder, Inventory playerInv, boolean simulate) {
+        int amountNeeded = target.getCount(); // [修复] 使用目标堆叠数量，而不是固定 1
+
+        // 1. 检查卡包
+        if (!cardHolder.isEmpty()) {
+            CardHolderItemStackHandler holderHandler = new CardHolderItemStackHandler(27, cardHolder);
+            for (int i = 0; i < holderHandler.getSlots(); i++) {
+                ItemStack inSlot = holderHandler.getStackInSlot(i);
+                if (ItemStack.isSameItemSameComponents(inSlot, target)) {
+                    int toExtract = Math.min(amountNeeded, inSlot.getCount());
+                    if (!simulate) {
+                        holderHandler.extractItem(i, toExtract, false);
+                    }
+                    amountNeeded -= toExtract;
+                    if (amountNeeded == 0) return true;
+                }
+            }
+        }
+
+        // 2. 检查玩家背包
+        for (int i = 0; i < playerInv.getContainerSize(); i++) {
+            ItemStack inSlot = playerInv.getItem(i);
+            if (ItemStack.isSameItemSameComponents(inSlot, target)) {
+                int toExtract = Math.min(amountNeeded, inSlot.getCount());
+                if (!simulate) {
+                    playerInv.removeItem(i, toExtract);
+                }
+                amountNeeded -= toExtract;
+                if (amountNeeded == 0) return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean findRawMaterials(ItemStack target, ItemStack cardHolder, Inventory playerInv, boolean simulate) {
+        // 1. 扣除基础物品 (如白板卡 或 节点超频插件本身)
+        // [修复] 数量必须是 target.getCount()
+        ItemStack baseItem = new ItemStack(target.getItem(), target.getCount());
+        if (!consumeItem(baseItem, cardHolder, playerInv, simulate)) {
+            return false;
+        }
+
+        // 2. 分析内部组件 (Filter / Overclockers)
+        // 注意：这里的组件数量也要乘以 target.getCount()
+        List<ItemStack> componentsNeeded = new ArrayList<>();
+        
+        CardItemHandler handler;
+        if (target.getItem() instanceof CardEnergy) {
+            handler = new CardItemHandler(CardEnergyContainer.SLOTS, target);
+        } else if (target.getItem() instanceof BaseCard) {
+            handler = BaseCard.getInventory(target);
+        } else {
+            // 如果不是卡片 (例如 OverclockerNode)，没有内部组件，直接返回成功
+            return true;
+        }
+
+        for (int i = 0; i < handler.getSlots(); i++) {
+            ItemStack comp = handler.getStackInSlot(i);
+            if (!comp.isEmpty()) {
+                ItemStack neededComp = comp.copy();
+                neededComp.setCount(comp.getCount() * target.getCount()); // [关键] 乘以卡片堆叠数
+                componentsNeeded.add(neededComp);
+            }
+        }
+
+        // 3. 扣除组件
+        for (ItemStack comp : componentsNeeded) {
+            if (!consumeItem(comp, cardHolder, playerInv, simulate)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private boolean consumeItem(ItemStack needed, ItemStack cardHolder, Inventory playerInv, boolean simulate) {
+        int amountNeeded = needed.getCount();
+
+        // 从卡包扣
+        if (!cardHolder.isEmpty()) {
+            CardHolderItemStackHandler holderHandler = new CardHolderItemStackHandler(27, cardHolder);
+            for (int i = 0; i < holderHandler.getSlots(); i++) {
+                ItemStack inSlot = holderHandler.getStackInSlot(i);
+                if (inSlot.is(needed.getItem())) {
+                    int extract = Math.min(amountNeeded, inSlot.getCount());
+                    if (!simulate) {
+                        holderHandler.extractItem(i, extract, false);
+                    }
+                    amountNeeded -= extract;
+                    if (amountNeeded == 0) return true;
+                }
+            }
+        }
+
+        // 从背包扣
+        for (int i = 0; i < playerInv.getContainerSize(); i++) {
+            ItemStack inSlot = playerInv.getItem(i);
+            if (inSlot.is(needed.getItem())) {
+                int extract = Math.min(amountNeeded, inSlot.getCount());
+                if (!simulate) {
+                    playerInv.removeItem(i, extract);
+                }
+                amountNeeded -= extract;
+                if (amountNeeded == 0) return true;
+            }
+        }
+
+        return amountNeeded == 0;
     }
 }

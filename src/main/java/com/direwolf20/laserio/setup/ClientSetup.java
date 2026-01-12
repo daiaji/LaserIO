@@ -1,6 +1,5 @@
 package com.direwolf20.laserio.setup;
 
-import com.direwolf20.laserio.client.blockentityrenders.LaserConnectorAdvBERender;
 import com.direwolf20.laserio.client.blockentityrenders.LaserConnectorBERender;
 import com.direwolf20.laserio.client.blockentityrenders.LaserNodeBERender;
 import com.direwolf20.laserio.client.events.ClientEvents;
@@ -15,6 +14,7 @@ import com.direwolf20.laserio.common.items.cards.BaseCard;
 import com.direwolf20.laserio.common.items.cards.CardRedstone;
 import com.direwolf20.laserio.integration.mekanism.CardChemical;
 import com.direwolf20.laserio.integration.mekanism.MekanismIntegration;
+import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider; // [新增]
 import net.minecraft.client.renderer.item.ItemProperties;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FastColor;
@@ -29,55 +29,44 @@ import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.common.NeoForge;
 
-import java.awt.*;
+import java.awt.Color;
 
-@EventBusSubscriber(modid = LaserIO.MODID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.MOD)
+// [修复] 移除了 bus = Bus.MOD，NeoForge 会自动识别 IModBusEvent 并路由到 Mod 总线
+@EventBusSubscriber(modid = LaserIO.MODID, value = Dist.CLIENT)
 public class ClientSetup {
+    
+    @SubscribeEvent
     public static void init(final FMLClientSetupEvent event) {
-        // Render types are now handled in the model JSON files ("render_type": "minecraft:cutout")
-
-        //Register Custom Tooltips
-        //MinecraftForgeClient.registerTooltipComponentFactory(EventTooltip.CopyPasteTooltipComponent.Data.class, EventTooltip.CopyPasteTooltipComponent::new);
-
-        //Register our Render Events Class
+        // [保持] 这里的 ClientEvents 和 KeybindHandler 是运行时监听器，需要手动注册到游戏总线
         NeoForge.EVENT_BUS.register(ClientEvents.class);
-        
-        //Register our Keybind Handler (Optional here if using @EventBusSubscriber on KeybindHandler, but safe to keep)
         NeoForge.EVENT_BUS.register(KeybindHandler.class);
 
-        //Item Properties -- For giving the Cards an Insert/Extract on the itemstack
+        // Item Properties
         event.enqueueWork(() -> {
             ItemProperties.register(Registration.Card_Item.get(),
                     ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "mode"), (stack, level, living, id) -> {
-                        return (int) BaseCard.getTransferMode(stack);
+                        return (float) BaseCard.getTransferMode(stack);
                     });
-        });
-        event.enqueueWork(() -> {
             ItemProperties.register(Registration.Card_Fluid.get(),
                     ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "mode"), (stack, level, living, id) -> {
-                        return (int) BaseCard.getTransferMode(stack);
+                        return (float) BaseCard.getTransferMode(stack);
                     });
-        });
-        event.enqueueWork(() -> {
             ItemProperties.register(Registration.Card_Energy.get(),
                     ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "mode"), (stack, level, living, id) -> {
-                        return (int) BaseCard.getTransferMode(stack);
+                        return (float) BaseCard.getTransferMode(stack);
                     });
-        });
-        event.enqueueWork(() -> {
             ItemProperties.register(Registration.Card_Redstone.get(),
                     ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "mode"), (stack, level, living, id) -> {
-                        return (int) CardRedstone.getTransferMode(stack);
+                        return (float) CardRedstone.getTransferMode(stack);
                     });
-        });
-        if (MekanismIntegration.isLoaded()) {
-            event.enqueueWork(() -> {
+            
+            if (MekanismIntegration.isLoaded()) {
                 ItemProperties.register(Registration.Card_Chemical.get(),
                         ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "mode"), (stack, level, living, id) -> {
-                            return (int) CardChemical.getTransferMode(stack);
+                            return (float) CardChemical.getTransferMode(stack);
                         });
-            });
-        }
+            }
+        });
     }
 
     @SubscribeEvent
@@ -103,21 +92,24 @@ public class ClientSetup {
         event.register(KeybindHandler.TOGGLE_CARD_HOLDER_PULLING);
     }
 
+    @SuppressWarnings("unchecked")
     @SubscribeEvent
     public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
-        //Register Block Entity Renders
         event.registerBlockEntityRenderer(Registration.LaserConnector_BE.get(), LaserConnectorBERender::new);
         event.registerBlockEntityRenderer(Registration.LaserNode_BE.get(), LaserNodeBERender::new);
-        event.registerBlockEntityRenderer(Registration.LaserConnectorAdv_BE.get(), LaserConnectorAdvBERender::new);
+        
+        // [修复] 强制类型转换解决泛型不兼容问题
+        // LaserConnectorBERender 是为 LaserConnectorBE 设计的，但 LaserConnectorAdvBE 继承自它，
+        // 所以在运行时使用同一个渲染器是安全的。我们需要骗过编译器。
+        event.registerBlockEntityRenderer(Registration.LaserConnectorAdv_BE.get(), 
+            (BlockEntityRendererProvider<LaserConnectorAdvBE>) (Object) (BlockEntityRendererProvider<LaserConnectorBE>) LaserConnectorBERender::new);
     }
 
     @SubscribeEvent
     public static void registerTooltipFactory(RegisterClientTooltipComponentFactoriesEvent event) {
-        //LOGGER.debug("Registering custom tooltip component factories for {}", Reference.MODID);
         event.register(EventTooltip.CopyPasteTooltipComponent.Data.class, EventTooltip.CopyPasteTooltipComponent::new);
     }
 
-    //For giving the cards their channel color on the itemstack
     @SubscribeEvent
     static void itemColors(RegisterColorHandlersEvent.Item event) {
         event.register((stack, index) -> {
@@ -132,6 +124,7 @@ public class ClientSetup {
             }
             return 0xFFFFFFFF;
         }, Registration.Card_Item.get());
+
         event.register((stack, index) -> {
             if (index == 2) {
                 if (BaseCard.getTransferMode(stack) == (byte) 3) {
@@ -144,6 +137,7 @@ public class ClientSetup {
             }
             return 0xFFFFFFFF;
         }, Registration.Card_Fluid.get());
+
         if (MekanismIntegration.isLoaded()) {
             event.register((stack, index) -> {
                 if (index == 2) {
@@ -158,6 +152,7 @@ public class ClientSetup {
                 return 0xFFFFFFFF;
             }, Registration.Card_Chemical.get());
         }
+
         event.register((stack, index) -> {
             if (index == 2) {
                 if (BaseCard.getTransferMode(stack) == (byte) 3) {
@@ -170,6 +165,7 @@ public class ClientSetup {
             }
             return 0xFFFFFFFF;
         }, Registration.Card_Energy.get());
+
         event.register((stack, index) -> {
             if (index == 2) {
                 Color color = LaserNodeBERender.colors[CardRedstone.getRedstoneChannel(stack)];
@@ -177,25 +173,19 @@ public class ClientSetup {
             }
             return 0xFFFFFFFF;
         }, Registration.Card_Redstone.get());
+
         event.register((stack, index) -> {
-            if (index == 1) {
-                Color color = new Color(255, 0, 0, 255);
-                return color.getRGB();
-            }
+            if (index == 1) return new Color(255, 0, 0, 255).getRGB();
             return 0xFFFFFFFF;
         }, Registration.LaserNode_ITEM.get());
+
         event.register((stack, index) -> {
-            if (index == 1) {
-                Color color = new Color(255, 0, 0, 255);
-                return color.getRGB();
-            }
+            if (index == 1) return new Color(255, 0, 0, 255).getRGB();
             return 0xFFFFFFFF;
         }, Registration.LaserConnector_ITEM.get());
+
         event.register((stack, index) -> {
-            if (index == 1) {
-                Color color = new Color(255, 0, 0, 255);
-                return color.getRGB();
-            }
+            if (index == 1) return new Color(255, 0, 0, 255).getRGB();
             return 0xFFFFFFFF;
         }, Registration.LaserConnectorAdv_ITEM.get());
     }
@@ -204,11 +194,11 @@ public class ClientSetup {
     public static void blockColors(RegisterColorHandlersEvent.Block event) {
         event.register(
                 (state, env, pos, index) -> {
-                    assert env != null;
-                    assert pos != null;
-                    if (env.getBlockEntity(pos) instanceof LaserNodeBE laserNodeBE) {
-                        Color color = laserNodeBE.getColor();
-                        return FastColor.ARGB32.color(color.getAlpha(), color.getRed(), color.getGreen(), color.getBlue());
+                    if (index == 0 && env != null && pos != null) {
+                        if (env.getBlockEntity(pos) instanceof LaserNodeBE laserNodeBE) {
+                            Color color = laserNodeBE.getColor();
+                            return FastColor.ARGB32.color(color.getAlpha(), color.getRed(), color.getGreen(), color.getBlue());
+                        }
                     }
                     return FastColor.ARGB32.color(255, 255, 0, 0);
                 },
@@ -216,11 +206,11 @@ public class ClientSetup {
         );
         event.register(
                 (state, env, pos, index) -> {
-                    assert env != null;
-                    assert pos != null;
-                    if (env.getBlockEntity(pos) instanceof LaserConnectorBE laserConnectorBE) {
-                        Color color = laserConnectorBE.getColor();
-                        return FastColor.ARGB32.color(color.getAlpha(), color.getRed(), color.getGreen(), color.getBlue());
+                    if (index == 0 && env != null && pos != null) {
+                        if (env.getBlockEntity(pos) instanceof LaserConnectorBE laserConnectorBE) {
+                            Color color = laserConnectorBE.getColor();
+                            return FastColor.ARGB32.color(color.getAlpha(), color.getRed(), color.getGreen(), color.getBlue());
+                        }
                     }
                     return FastColor.ARGB32.color(255, 255, 0, 0);
                 },
@@ -228,11 +218,11 @@ public class ClientSetup {
         );
         event.register(
                 (state, env, pos, index) -> {
-                    assert env != null;
-                    assert pos != null;
-                    if (env.getBlockEntity(pos) instanceof LaserConnectorAdvBE laserConnectorAdvBE) {
-                        Color color = laserConnectorAdvBE.getColor();
-                        return FastColor.ARGB32.color(color.getAlpha(), color.getRed(), color.getGreen(), color.getBlue());
+                    if (index == 0 && env != null && pos != null) {
+                        if (env.getBlockEntity(pos) instanceof LaserConnectorAdvBE laserConnectorAdvBE) {
+                            Color color = laserConnectorAdvBE.getColor();
+                            return FastColor.ARGB32.color(color.getAlpha(), color.getRed(), color.getGreen(), color.getBlue());
+                        }
                     }
                     return FastColor.ARGB32.color(255, 255, 0, 0);
                 },

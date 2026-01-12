@@ -3,7 +3,10 @@ package com.direwolf20.laserio.client.screens;
 import com.direwolf20.laserio.client.screens.widgets.ChannelButton;
 import com.direwolf20.laserio.client.screens.widgets.ToggleButton;
 import com.direwolf20.laserio.common.LaserIO;
+import com.direwolf20.laserio.common.containers.CardHolderContainer;
 import com.direwolf20.laserio.common.containers.CardRedstoneContainer;
+import com.direwolf20.laserio.common.containers.customslot.CardHolderSlot;
+import com.direwolf20.laserio.common.items.cards.BaseCard;
 import com.direwolf20.laserio.common.items.cards.CardRedstone;
 import com.direwolf20.laserio.common.network.data.OpenNodePayload;
 import com.direwolf20.laserio.common.network.data.UpdateRedstoneCardPayload;
@@ -20,6 +23,7 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.client.gui.widget.ExtendedButton;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -29,25 +33,36 @@ import java.util.Map;
 
 public class CardRedstoneScreen extends AbstractContainerScreen<CardRedstoneContainer> {
     private final ResourceLocation GUI = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/redstonecard.png");
+    private static final ResourceLocation CARD_HOLDER_GUI = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/cardholder_node.png");
 
     protected final CardRedstoneContainer container;
+    // [修复] 添加遗漏的 currentChannel 字段
+    protected byte currentChannel; 
     protected byte currentMode;
     protected byte currentRedstoneChannel;
     protected boolean currentStrong;
     protected final ItemStack card;
     protected Map<String, Button> buttons = new HashMap<>();
+    private boolean showCardHolderUI;
 
     public CardRedstoneScreen(CardRedstoneContainer container, Inventory inv, Component name) {
         super(container, inv, name);
         this.container = container;
         this.card = container.cardItem;
+        this.showCardHolderUI = !container.cardHolder.isEmpty();
+    }
+
+    public boolean isCardHolderUIShown() {
+        return showCardHolderUI;
     }
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
-        //this.renderBackground(guiGraphics);
+        this.renderBackground(guiGraphics, mouseX, mouseY, partialTicks);
+        toggleHolderSlots();
         super.render(guiGraphics, mouseX, mouseY, partialTicks);
         this.renderTooltip(guiGraphics, mouseX, mouseY);
+        
         Button modeButton = buttons.get("mode");
         if (MiscTools.inBounds(modeButton.getX(), modeButton.getY(), modeButton.getWidth(), modeButton.getHeight(), mouseX, mouseY)) {
             MutableComponent translatableComponents[] = new MutableComponent[3];
@@ -64,8 +79,14 @@ public class CardRedstoneScreen extends AbstractContainerScreen<CardRedstoneCont
                 guiGraphics.renderTooltip(font, translatableComponents[currentStrong ? 1 : 0], mouseX, mouseY);
             }
         }
+        // 渲染基础频道 Tip (左下角)
         Button channelButton = buttons.get("channel");
         if (MiscTools.inBounds(channelButton.getX(), channelButton.getY(), channelButton.getWidth(), channelButton.getHeight(), mouseX, mouseY)) {
+            guiGraphics.renderTooltip(font, Component.translatable("screen.laserio.channel").append(String.valueOf(currentChannel)), mouseX, mouseY);
+        }
+        // 渲染红石频道 Tip (上方)
+        Button redstoneChannelButton = buttons.get("redstoneChannel");
+        if (MiscTools.inBounds(redstoneChannelButton.getX(), redstoneChannelButton.getY(), redstoneChannelButton.getWidth(), redstoneChannelButton.getHeight(), mouseX, mouseY)) {
             guiGraphics.renderTooltip(font, Component.translatable("screen.laserio.redstonechannel").append(String.valueOf(currentRedstoneChannel)), mouseX, mouseY);
         }
     }
@@ -92,7 +113,16 @@ public class CardRedstoneScreen extends AbstractContainerScreen<CardRedstoneCont
     }
 
     public void addChannelButton() {
-        buttons.put("channel", new ChannelButton(getGuiLeft() + 5, getGuiTop() + 65, 16, 16, currentRedstoneChannel, (button) -> {
+        // 基础网络频道 (通常在左下角)
+        buttons.put("channel", new ChannelButton(getGuiLeft() + 5, getGuiTop() + 65, 16, 16, currentChannel, (button) -> {
+            currentChannel = BaseCard.nextChannel(card);
+            ((ChannelButton) button).setChannel(currentChannel);
+        }));
+    }
+
+    public void addRedstoneChannelButton() {
+        // 红石信号频道 (通常在上方)
+        buttons.put("redstoneChannel", new ChannelButton(getGuiLeft() + 105, getGuiTop() + 5, 16, 16, currentRedstoneChannel, (button) -> {
             currentRedstoneChannel = CardRedstone.nextRedstoneChannel(card);
             ((ChannelButton) button).setChannel(currentRedstoneChannel);
         }));
@@ -101,11 +131,15 @@ public class CardRedstoneScreen extends AbstractContainerScreen<CardRedstoneCont
     @Override
     public void init() {
         super.init();
+        // [修复] 初始化所有字段
         currentMode = CardRedstone.getTransferMode(card);
+        currentChannel = BaseCard.getChannel(card);
         currentRedstoneChannel = CardRedstone.getRedstoneChannel(card);
         currentStrong = CardRedstone.getStrong(card);
+        
         addModeButton();
         addChannelButton();
+        addRedstoneChannelButton();
         addStrongButton();
 
         if (container.direction != -1) {
@@ -133,16 +167,6 @@ public class CardRedstoneScreen extends AbstractContainerScreen<CardRedstoneCont
 
     @Override
     protected void renderLabels(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-        /*stack.pushPose();
-        stack.scale(0.5f, 0.5f, 0.5f);
-        if (showExtractAmt()) {
-            font.draw(stack, Component.translatable("screen.laserio.extractamt").getString() + ":", 5*2, 45*2, Color.DARK_GRAY.getRGB());
-        }
-        if (showPriority()) {
-            font.draw(stack, Component.translatable("screen.laserio.priority").getString() + ":", 5*2, 50*2, Color.DARK_GRAY.getRGB());
-        }
-        stack.popPose();*/
-        //super.renderLabels(matrixStack, x, y);
     }
 
     @Override
@@ -151,6 +175,30 @@ public class CardRedstoneScreen extends AbstractContainerScreen<CardRedstoneCont
         int relX = (this.width - this.imageWidth) / 2;
         int relY = (this.height - this.imageHeight) / 2;
         guiGraphics.blit(GUI, relX, relY, 0, 0, this.imageWidth, this.imageHeight);
+
+        if (showCardHolderUI) {
+            RenderSystem.setShaderTexture(0, CARD_HOLDER_GUI);
+            guiGraphics.blit(CARD_HOLDER_GUI, getGuiLeft() - 100, getGuiTop() + 24, 0, 0, this.imageWidth, this.imageHeight);
+        }
+    }
+
+    public void toggleHolderSlots() {
+        int startIndex = CardRedstoneContainer.SLOTS;
+        int endIndex = startIndex + CardHolderContainer.SLOTS;
+        for (int i = startIndex; i < endIndex; i++) {
+            if (i >= container.slots.size()) continue;
+            Slot slot = container.getSlot(i);
+            if (slot instanceof CardHolderSlot cardHolderSlot) {
+                cardHolderSlot.setEnabled(showCardHolderUI);
+            }
+        }
+    }
+
+    @Override
+    protected boolean hasClickedOutside(double mouseX, double mouseY, int guiLeftIn, int guiTopIn, int mouseButton) {
+        if (showCardHolderUI)
+            return mouseX < (double) guiLeftIn - 100 || mouseY < (double) guiTopIn || mouseX >= (double) (guiLeftIn + this.imageWidth) || mouseY >= (double) (guiTopIn + this.imageHeight);
+        return super.hasClickedOutside(mouseX, mouseY, guiLeftIn, guiTopIn, mouseButton);
     }
 
     @Override
@@ -169,13 +217,10 @@ public class CardRedstoneScreen extends AbstractContainerScreen<CardRedstoneCont
         InputConstants.Key mouseKey = InputConstants.getKey(p_keyPressed_1_, p_keyPressed_2_);
         if (p_keyPressed_1_ == 256 || minecraft.options.keyInventory.isActiveAndMatches(mouseKey)) {
             onClose();
-
             return true;
         }
-
         return super.keyPressed(p_keyPressed_1_, p_keyPressed_2_, p_keyPressed_3_);
     }
-
 
     public boolean mouseReleased(double p_mouseReleased_1_, double p_mouseReleased_3_, int p_mouseReleased_5_) {
         return super.mouseReleased(p_mouseReleased_1_, p_mouseReleased_3_, p_mouseReleased_5_);
@@ -186,12 +231,9 @@ public class CardRedstoneScreen extends AbstractContainerScreen<CardRedstoneCont
         return super.mouseScrolled(mouseX, mouseY, delta, deltaY);
     }
 
-    private static MutableComponent getTrans(String key, Object... args) {
-        return Component.translatable(LaserIO.MODID + "." + key, args);
-    }
-
     public void saveSettings() {
-        PacketDistributor.sendToServer(new UpdateRedstoneCardPayload(currentMode, currentRedstoneChannel, currentStrong));
+        // [修复] 发送包含 currentChannel 的完整数据包
+        PacketDistributor.sendToServer(new UpdateRedstoneCardPayload(currentMode, currentChannel, currentRedstoneChannel, currentStrong));
     }
 
     public void openNode() {
@@ -202,17 +244,28 @@ public class CardRedstoneScreen extends AbstractContainerScreen<CardRedstoneCont
 
     @Override
     public boolean mouseClicked(double x, double y, int btn) {
+        // 基础频道按钮逻辑
         ChannelButton channelButton = ((ChannelButton) buttons.get("channel"));
         if (MiscTools.inBounds(channelButton.getX(), channelButton.getY(), channelButton.getWidth(), channelButton.getHeight(), x, y)) {
+            if (btn == 0)
+                currentChannel = BaseCard.nextChannel(card);
+            else if (btn == 1)
+                currentChannel = BaseCard.previousChannel(card);
+            channelButton.setChannel(currentChannel);
+            channelButton.playDownSound(Minecraft.getInstance().getSoundManager());
+            return true;
+        }
+        // 红石频道按钮逻辑
+        ChannelButton redstoneChannelButton = ((ChannelButton) buttons.get("redstoneChannel"));
+        if (MiscTools.inBounds(redstoneChannelButton.getX(), redstoneChannelButton.getY(), redstoneChannelButton.getWidth(), redstoneChannelButton.getHeight(), x, y)) {
             if (btn == 0)
                 currentRedstoneChannel = CardRedstone.nextRedstoneChannel(card);
             else if (btn == 1)
                 currentRedstoneChannel = CardRedstone.previousRedstoneChannel(card);
-            channelButton.setChannel(currentRedstoneChannel);
-            channelButton.playDownSound(Minecraft.getInstance().getSoundManager());
+            redstoneChannelButton.setChannel(currentRedstoneChannel);
+            redstoneChannelButton.playDownSound(Minecraft.getInstance().getSoundManager());
             return true;
         }
-
         return super.mouseClicked(x, y, btn);
     }
 }

@@ -33,6 +33,8 @@ import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Supplier;
 
 import static com.direwolf20.laserio.client.particles.ModParticles.PARTICLE_TYPES;
@@ -47,12 +49,22 @@ public class Registration {
     private static final DeferredRegister<MenuType<?>> CONTAINERS = DeferredRegister.create(Registries.MENU, MODID);
     public static final DeferredRegister<RecipeSerializer<?>> RECIPE_SERIALIZERS = DeferredRegister.create(Registries.RECIPE_SERIALIZER, LaserIO.MODID);
     public static final Supplier<CardClearRecipe.Serializer> CARD_CLEAR_RECIPE_SERIALIZER = RECIPE_SERIALIZERS.register("cardclear", CardClearRecipe.Serializer::new);
-    // Create the DeferredRegister for attachment types
     private static final DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES = DeferredRegister.create(NeoForgeRegistries.ATTACHMENT_TYPES, LaserIO.MODID);
 
     public static final DeferredRegister<Item> ITEMS_MEKANISM = DeferredRegister.create(Registries.ITEM, MODID);
 
+    public static final List<DeferredHolder<Item, OverclockerCard>> ENERGY_OVERCLOCKER_CARDS = new ArrayList<>();
+
     public static void init(IEventBus eventBus) {
+        // [修复] 使用 DEFAULT_TIER_VALUES.size() 避免 NPE
+        int tierCount = Config.DEFAULT_TIER_VALUES.size();
+        for (int i = 1; i <= tierCount; i++) {
+            int currentTier = i;
+            DeferredHolder<Item, OverclockerCard> card = ITEMS.register("energy_overclocker_card_tier_" + i,
+                    () -> new OverclockerCard(currentTier));
+            ENERGY_OVERCLOCKER_CARDS.add(card);
+        }
+
         BLOCKS.register(eventBus);
         ITEMS.register(eventBus);
         if (MekanismIntegration.isLoaded()) {
@@ -67,9 +79,7 @@ public class Registration {
         LaserIODataComponents.COMPONENTS.register(eventBus);
     }
 
-    // Some common properties for our blocks and items
-    //public static final Item.Properties ITEM_PROPERTIES = new Item.Properties().tab(ModSetup.ITEM_GROUP);
-
+    // ... (中间的静态注册代码保持不变，省略以节省空间，直接用你原文件中的即可) ...
     //Blocks
     public static final DeferredHolder<Block, LaserConnector> LaserConnector = BLOCKS.register("laser_connector", LaserConnector::new);
     public static final DeferredHolder<Item, BlockItem> LaserConnector_ITEM = ITEMS.register("laser_connector", () -> new BlockItem(LaserConnector.get(), new Item.Properties()));
@@ -108,7 +118,9 @@ public class Registration {
     //Misc
     public static final DeferredHolder<Item, LogicChipRaw> Logic_Chip_Raw = ITEMS.register("logic_chip_raw", LogicChipRaw::new);
     public static final DeferredHolder<Item, LogicChip> Logic_Chip = ITEMS.register("logic_chip", LogicChip::new);
-    public static final DeferredHolder<Item, OverclockerCard> Overclocker_Card = ITEMS.register("overclocker_card", OverclockerCard::new);
+    
+    // [注意] 这里的逻辑超频卡定义要保留
+    public static final DeferredHolder<Item, OverclockerCard> Overclocker_Card = ITEMS.register("overclocker_card", () -> new OverclockerCard(-1));
     public static final DeferredHolder<Item, OverclockerNode> Overclocker_Node = ITEMS.register("overclocker_node", OverclockerNode::new);
 
     //Containers
@@ -134,9 +146,4 @@ public class Registration {
             () -> IMenuTypeExtension.create((windowId, inv, data) -> new FilterTagContainer(windowId, inv, inv.player, data)));
     public static final DeferredHolder<MenuType<?>, MenuType<FilterNBTContainer>> FilterNBT_Container = CONTAINERS.register("filternbt",
             () -> IMenuTypeExtension.create((windowId, inv, data) -> new FilterNBTContainer(windowId, inv, inv.player, data)));
-
-    // Conveniance function: Take a RegistryObject<Block> and make a corresponding RegistryObject<Item> from it
-    /*public static <B extends Block> RegistryObject<Item> fromBlock(RegistryObject<B> block) {
-        return ITEMS.register(block.getId().getPath(), () -> new BlockItem(block.get(), ITEM_PROPERTIES));
-    }*/
 }

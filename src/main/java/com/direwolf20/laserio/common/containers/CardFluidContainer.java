@@ -1,6 +1,5 @@
 package com.direwolf20.laserio.common.containers;
 
-
 import com.direwolf20.laserio.common.items.CardHolder;
 import com.direwolf20.laserio.common.items.cards.BaseCard;
 import com.direwolf20.laserio.setup.Registration;
@@ -28,12 +27,15 @@ public class CardFluidContainer extends CardItemContainer {
         this.handler = BaseCard.getInventory(cardItem);
         this.playerInventory = new InvWrapper(playerInventory);
         this.cardItem = cardItem;
+        
         if (handler != null) {
+            // 同样调用父类的 addSlotRange，确保能放入逻辑超频卡
             addSlotRange(handler, 0, 80, 5, 1, 18);
             addSlotRange(handler, 1, 153, 5, 1, 18);
             addSlotBox(filterHandler, 0, 44, 25, 5, 18, 3, 18);
             toggleFilterSlots();
         }
+        
         cardHolder = findCardHolders(player);
         if (!cardHolder.isEmpty()) {
             this.cardHolderHandler = new CardHolderItemStackHandler(CardHolderContainer.SLOTS, cardHolder);

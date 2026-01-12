@@ -44,7 +44,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class CardItemScreen extends AbstractContainerScreen<CardItemContainer> {
-    private final ResourceLocation GUI = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/itemcard.png");
+    protected final ResourceLocation GUI = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/itemcard.png");
     protected static final ResourceLocation CARD_HOLDER_GUI = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/cardholder_node.png");
 
     protected final CardItemContainer container;

@@ -1,14 +1,25 @@
 package com.direwolf20.laserio.common.network.handler;
 
+import com.direwolf20.laserio.common.blocks.LaserNode;
+import com.direwolf20.laserio.common.containers.CardEnergyContainer;
+import com.direwolf20.laserio.common.containers.CardEnergyContainer;
+import com.direwolf20.laserio.common.containers.CardHolderContainer;
+import com.direwolf20.laserio.common.containers.CardItemContainer;
 import com.direwolf20.laserio.common.containers.LaserNodeContainer;
 import com.direwolf20.laserio.common.containers.customhandler.CardItemHandler;
+import com.direwolf20.laserio.common.containers.customslot.CardHolderSlot;
 import com.direwolf20.laserio.common.items.CardCloner;
 import com.direwolf20.laserio.common.items.cards.BaseCard;
+import com.direwolf20.laserio.common.items.cards.CardEnergy;
 import com.direwolf20.laserio.common.network.data.CopyPasteCardPayload;
+import com.direwolf20.laserio.util.CardHolderItemStackHandler;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponentPatch;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.protocol.game.ClientboundSoundPacket;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
@@ -16,10 +27,15 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.neoforged.neoforge.items.IItemHandlerModifiable;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class PacketCopyPasteCard {
@@ -32,187 +48,337 @@ public class PacketCopyPasteCard {
     public void handle(final CopyPasteCardPayload payload, final IPayloadContext context) {
         context.enqueueWork(() -> {
             Player player = context.player();
-
             AbstractContainerMenu container = player.containerMenu;
-            if (container == null)
-                return;
+            if (container == null) return;
 
-            if (!(container instanceof LaserNodeContainer))
-                return;
-
-            LaserNodeContainer laserNodeContainer = (LaserNodeContainer) container;
-
-            if (player.containerMenu.getCarried().isEmpty())
-                return;
+            if (payload.slot() < 0 || payload.slot() >= container.slots.size()) return;
 
             ItemStack slotStack = container.getSlot(payload.slot()).getItem();
             ItemStack clonerStack = container.getCarried();
-            if (payload.copy()) { //copy mode
-                DataComponentPatch dataComponentPatch = slotStack.getComponentsPatch();
-                CardCloner.saveSettings(clonerStack, dataComponentPatch);
-                CardCloner.setItemType(clonerStack, slotStack.getItem().toString());
-                playSound((ServerPlayer) player, Holder.direct(SoundEvent.createVariableRangeEvent(ResourceLocation.parse(SoundEvents.UI_CARTOGRAPHY_TABLE_TAKE_RESULT.getLocation().toString()))));
-            } else {
-                if (slotStack.getItem().toString().equals(CardCloner.getItemType(clonerStack))) {
-                    CardItemHandler cardItemHandler = BaseCard.getInventory(slotStack);
-                    ItemStack filterNeeded = CardCloner.getFilter(clonerStack);
-                    ItemStack existingFilter = cardItemHandler.getStackInSlot(0);
-                    ItemStack overclockersNeeded = CardCloner.getOverclocker(clonerStack);
-                    ItemStack existingOverclockers = cardItemHandler.getStackInSlot(1);
-                    boolean filterSatisfied = false;
-                    boolean filterNeedsReturn = false;
-                    boolean overclockSatisfied = false;
-                    boolean overclockNeedsReturn = false;
-                    if (existingFilter.is(filterNeeded.getItem())) { //If the right filters there, do nothing
-                        filterSatisfied = true;
-                    } else {
-                        if (!existingFilter.isEmpty()) { //If we have the wrong filter, and theres an existing one, remove it first
-                            filterNeedsReturn = !returnItemToholder(laserNodeContainer, existingFilter, true);
-                        }
-                        if (!filterNeedsReturn) { //If the filter can be returned or doesn't need to be
-                            filterSatisfied = getItemFromHolder(laserNodeContainer, filterNeeded, true);
+
+            if (clonerStack.isEmpty() || !(clonerStack.getItem() instanceof CardCloner)) return;
+
+            if (payload.copy()) { // ============================ 复制模式 ============================
+                Item slotItem = slotStack.getItem();
+                if (slotItem instanceof BaseCard) {
+                    DataComponentPatch dataComponentPatch = slotStack.getComponentsPatch();
+                    CardCloner.saveSettings(clonerStack, dataComponentPatch);
+                    CardCloner.setItemType(clonerStack, slotStack.getItem().toString());
+                    
+                    playSound((ServerPlayer) player, SoundEvents.UI_CARTOGRAPHY_TABLE_TAKE_RESULT);
+                    player.displayClientMessage(Component.translatable("message.laserio.card_cloner.card_copied"), true);
+                }
+            } else { // ============================ 粘贴模式 ============================
+                String savedType = CardCloner.getItemType(clonerStack);
+                if (savedType.isEmpty() || !slotStack.getItem().toString().equals(savedType)) {
+                    player.displayClientMessage(Component.literal("Paste Failed: Card type mismatch").withStyle(ChatFormatting.RED), true);
+                    playSound((ServerPlayer) player, SoundEvents.WAXED_SIGN_INTERACT_FAIL);
+                    return;
+                }
+
+                int stackSize = slotStack.getCount();
+                
+                // 1. 需求计算
+                ItemStack baseFilterNeeded = CardCloner.getFilter(clonerStack);
+                ItemStack baseOverclockersNeeded = CardCloner.getOverclocker(clonerStack);
+
+                // 2. 现有检查
+                CardItemHandler existingHandler = getCardHandler(slotStack);
+                ItemStack baseExistingFilter = ItemStack.EMPTY;
+                ItemStack baseExistingOverclockers = ItemStack.EMPTY;
+
+                int filterSlotIndex = 0;
+                int overclockSlotIndex = 1;
+                boolean isEnergyCard = (slotStack.getItem() instanceof CardEnergy);
+                if (isEnergyCard) {
+                    overclockSlotIndex = 0;
+                    filterSlotIndex = -1; 
+                }
+
+                if (!isEnergyCard && existingHandler.getSlots() > 0) {
+                    baseExistingFilter = existingHandler.getStackInSlot(filterSlotIndex);
+                }
+                if (existingHandler.getSlots() > overclockSlotIndex) {
+                    baseExistingOverclockers = existingHandler.getStackInSlot(overclockSlotIndex);
+                }
+
+                // 3. 资源池构建 (虚拟卡包 + 物理背包)
+                boolean hasGuiCardHolderSlots = false;
+                List<Integer> physicalSourceSlots = new ArrayList<>();
+                for (Slot s : container.slots) {
+                    if (s.index == payload.slot()) continue; 
+                    
+                    if (s instanceof CardHolderSlot) {
+                        hasGuiCardHolderSlots = true;
+                        if (s.hasItem()) physicalSourceSlots.add(s.index);
+                    } else if (s.container == player.getInventory() && s.hasItem()) {
+                        physicalSourceSlots.add(s.index);
+                    }
+                }
+
+                // 如果 GUI 里没显示卡包槽位（比如按E打开的背包），则尝试寻找玩家身上的卡包（Curios/Inventory）
+                // 并将其封装为虚拟 ItemHandler
+                IItemHandlerModifiable virtualHandler = null;
+                if (!hasGuiCardHolderSlots) {
+                    ItemStack holderStack = LaserNode.findFirstCardHolder(player);
+                    if (!holderStack.isEmpty()) {
+                        virtualHandler = new CardHolderItemStackHandler(CardHolderContainer.SLOTS, holderStack);
+                    }
+                }
+
+                // 4. 计算与模拟
+                boolean filterSatisfied = false;
+                boolean filterNeedsReturn = false;
+                boolean overclockSatisfied = false;
+                boolean overclockNeedsReturn = false;
+
+                int totalFilterNeeded = baseFilterNeeded.getCount() * stackSize;
+                int totalExistingFilter = baseExistingFilter.getCount() * stackSize;
+
+                // --- 过滤器 ---
+                if (filterSlotIndex == -1) {
+                    filterSatisfied = true;
+                } else if (baseExistingFilter.is(baseFilterNeeded.getItem())) {
+                    filterSatisfied = true;
+                } else {
+                    if (!baseExistingFilter.isEmpty()) {
+                        filterNeedsReturn = !returnResources(container, physicalSourceSlots, virtualHandler, baseExistingFilter.getItem(), totalExistingFilter, true);
+                    }
+                    if (!filterNeedsReturn) {
+                        if (totalFilterNeeded > 0) {
+                            filterSatisfied = getResources(container, physicalSourceSlots, virtualHandler, baseFilterNeeded.getItem(), totalFilterNeeded, true);
+                        } else {
+                            filterSatisfied = true;
                         }
                     }
-                    if (existingOverclockers.getCount() == overclockersNeeded.getCount()) { //If we have the right number of overclockers
+                }
+
+                // --- 超频 ---
+                int totalOverclockNeeded = baseOverclockersNeeded.getCount() * stackSize;
+                int totalExistingOverclock = baseExistingOverclockers.getCount() * stackSize;
+
+                if (baseExistingOverclockers.getCount() == baseOverclockersNeeded.getCount()) {
+                    overclockSatisfied = true;
+                } else {
+                    if (baseExistingOverclockers.getCount() > baseOverclockersNeeded.getCount()) {
+                        int totalReturn = (baseExistingOverclockers.getCount() - baseOverclockersNeeded.getCount()) * stackSize;
+                        overclockNeedsReturn = !returnResources(container, physicalSourceSlots, virtualHandler, baseExistingOverclockers.getItem(), totalReturn, true);
                         overclockSatisfied = true;
                     } else {
-                        if (existingOverclockers.getCount() > overclockersNeeded.getCount()) { //If we have too many overclockers
-                            int amtReturn = existingOverclockers.getCount() - overclockersNeeded.getCount();
-                            ItemStack returnStack = new ItemStack(existingOverclockers.getItem(), amtReturn);
-                            overclockNeedsReturn = !returnItemToholder(laserNodeContainer, returnStack, true);
-                            overclockSatisfied = true;
-                        } else { //If we don't have enough
-                            int amtNeeded = overclockersNeeded.getCount() - existingOverclockers.getCount();
-                            ItemStack findStack = new ItemStack(overclockersNeeded.getItem(), amtNeeded);
-                            overclockSatisfied = getItemFromHolder(laserNodeContainer, findStack, true);
+                        int totalNeed = (baseOverclockersNeeded.getCount() - baseExistingOverclockers.getCount()) * stackSize;
+                        overclockSatisfied = getResources(container, physicalSourceSlots, virtualHandler, baseOverclockersNeeded.getItem(), totalNeed, true);
+                    }
+                }
+
+                // 5. 执行
+                if (filterSatisfied && !filterNeedsReturn && overclockSatisfied && !overclockNeedsReturn) {
+                    // 过滤器交换
+                    if (filterSlotIndex != -1 && !baseExistingFilter.is(baseFilterNeeded.getItem())) {
+                        if (!baseExistingFilter.isEmpty()) {
+                            if (!returnResources(container, physicalSourceSlots, virtualHandler, baseExistingFilter.getItem(), totalExistingFilter, false))
+                                dropItem(player, new ItemStack(baseExistingFilter.getItem(), totalExistingFilter));
+                        }
+                        if (totalFilterNeeded > 0) {
+                            getResources(container, physicalSourceSlots, virtualHandler, baseFilterNeeded.getItem(), totalFilterNeeded, false);
                         }
                     }
-                    if (filterSatisfied && !filterNeedsReturn && overclockSatisfied && !overclockNeedsReturn) {
-                        if (!existingFilter.is(filterNeeded.getItem())) { //Now that we're doing it for real, check to make sure the filter needs switching
-                            boolean success = returnItemToholder(laserNodeContainer, existingFilter, false);
-                            if (!success) {
-                                //Drop item in world
-                                ItemEntity itemEntity = new ItemEntity(player.level(), player.getX(), player.getY(), player.getZ(), existingFilter);
-                                player.level().addFreshEntity(itemEntity);
-                            }
-                            getItemFromHolder(laserNodeContainer, filterNeeded, false);
+
+                    // 超频交换
+                    if (baseExistingOverclockers.getCount() != baseOverclockersNeeded.getCount()) {
+                        if (baseExistingOverclockers.getCount() > baseOverclockersNeeded.getCount()) {
+                            int totalReturn = (baseExistingOverclockers.getCount() - baseOverclockersNeeded.getCount()) * stackSize;
+                            if (!returnResources(container, physicalSourceSlots, virtualHandler, baseExistingOverclockers.getItem(), totalReturn, false))
+                                dropItem(player, new ItemStack(baseExistingOverclockers.getItem(), totalReturn));
+                        } else {
+                            int totalNeed = (baseOverclockersNeeded.getCount() - baseExistingOverclockers.getCount()) * stackSize;
+                            getResources(container, physicalSourceSlots, virtualHandler, baseOverclockersNeeded.getItem(), totalNeed, false);
                         }
-                        if (existingOverclockers.getCount() != overclockersNeeded.getCount()) { //If we need to work with Overclockers
-                            if (existingOverclockers.getCount() > overclockersNeeded.getCount()) { //If we have too many overclockers
-                                int amtReturn = existingOverclockers.getCount() - overclockersNeeded.getCount();
-                                ItemStack returnStack = new ItemStack(existingOverclockers.getItem(), amtReturn);
-                                boolean success = returnItemToholder(laserNodeContainer, returnStack, false);
-                                if (!success) {
-                                    //Drop item in world
-                                    ItemEntity itemEntity = new ItemEntity(player.level(), player.getX(), player.getY(), player.getZ(), returnStack);
-                                    player.level().addFreshEntity(itemEntity);
-                                }
-                            } else { //If we don't have enough
-                                int amtNeeded = overclockersNeeded.getCount() - existingOverclockers.getCount();
-                                ItemStack findStack = new ItemStack(overclockersNeeded.getItem(), amtNeeded);
-                                getItemFromHolder(laserNodeContainer, findStack, false);
-                            }
-                        }
-                        ItemStack tempStack = slotStack.copy();
-                        tempStack.getComponentsPatch().entrySet().forEach(k -> tempStack.remove(k.getKey()));
-                        DataComponentPatch dataComponentPatch = CardCloner.getSettings(clonerStack);
-                        tempStack.applyComponents(dataComponentPatch);
-                        container.getSlot(payload.slot()).set(tempStack);
-                        playSound((ServerPlayer) player, Holder.direct(SoundEvent.createVariableRangeEvent(ResourceLocation.parse(SoundEvents.ENCHANTMENT_TABLE_USE.getLocation().toString()))));
-                        ((LaserNodeContainer) container).tile.updateThisNode();
-                    } else {
-                        playSound((ServerPlayer) player, Holder.direct(SoundEvent.createVariableRangeEvent(ResourceLocation.parse(SoundEvents.WAXED_SIGN_INTERACT_FAIL.getLocation().toString()))));
+                    }
+
+                    // 应用新数据
+                    ItemStack tempStack = new ItemStack(slotStack.getItem(), stackSize);
+                    DataComponentPatch storedPatch = CardCloner.getSettings(clonerStack);
+                    if (storedPatch != null) {
+                        tempStack.applyComponents(storedPatch);
+                    }
+
+                    CardItemHandler newHandler = getCardHandler(tempStack);
+                    if (filterSlotIndex != -1 && !baseFilterNeeded.isEmpty()) {
+                        ItemStack filterToSet = baseFilterNeeded.copy();
+                        filterToSet.setCount(1);
+                        newHandler.setStackInSlot(filterSlotIndex, filterToSet);
+                    }
+                    if (!baseOverclockersNeeded.isEmpty()) {
+                        ItemStack ocToSet = baseOverclockersNeeded.copy();
+                        newHandler.setStackInSlot(overclockSlotIndex, ocToSet);
+                    }
+
+                    container.getSlot(payload.slot()).set(tempStack);
+
+                    playSound((ServerPlayer) player, SoundEvents.ENCHANTMENT_TABLE_USE);
+                    
+                    if (container instanceof LaserNodeContainer laserNodeContainer) {
+                        laserNodeContainer.tile.updateThisNode();
                     }
                 } else {
-                    playSound((ServerPlayer) player, Holder.direct(SoundEvent.createVariableRangeEvent(ResourceLocation.parse(SoundEvents.WAXED_SIGN_INTERACT_FAIL.getLocation().toString()))));
+                    playSound((ServerPlayer) player, SoundEvents.WAXED_SIGN_INTERACT_FAIL);
+                    MutableComponent msg = Component.literal("Paste Failed: ");
+                    if (!filterSatisfied) msg.append("Missing Filters. ");
+                    if (filterNeedsReturn) msg.append("Full (Filter). ");
+                    if (!overclockSatisfied) msg.append("Missing OCs. ");
+                    if (overclockNeedsReturn) msg.append("Full (OC). ");
+                    player.displayClientMessage(msg.withStyle(ChatFormatting.RED), true);
                 }
             }
         });
     }
 
-    public static void playSound(ServerPlayer player, Holder<SoundEvent> soundEventHolder) {
-        // Get player's position
+    // ========================================================================================
+    // 新的资源管理逻辑：支持 虚拟Handler(卡包) + 物理Slots(背包)
+    // ========================================================================================
+
+    private static boolean returnResources(AbstractContainerMenu container, List<Integer> physicalSlots, IItemHandlerModifiable virtualHandler, Item item, int amount, boolean simulate) {
+        if (amount <= 0) return true;
+        int remaining = amount;
+        Map<Integer, Integer> physicalPlan = new HashMap<>();
+        Map<Integer, Integer> virtualPlan = new HashMap<>();
+
+        // 1. 优先放入虚拟卡包 (Virtual Handler)
+        if (virtualHandler != null) {
+            for (int i = 0; i < virtualHandler.getSlots(); i++) {
+                ItemStack inSlot = virtualHandler.getStackInSlot(i);
+                if (inSlot.isEmpty() || (inSlot.is(item) && inSlot.getCount() < inSlot.getMaxStackSize())) {
+                    int space = inSlot.getMaxStackSize() - inSlot.getCount();
+                    int toAdd = Math.min(remaining, space);
+                    virtualPlan.put(i, toAdd);
+                    remaining -= toAdd;
+                    if (remaining == 0) break;
+                }
+            }
+        }
+
+        // 2. 如果还有剩余，放入物理背包 (Physical Slots)
+        if (remaining > 0) {
+            for (int slotIndex : physicalSlots) {
+                ItemStack inSlot = container.getSlot(slotIndex).getItem();
+                if (inSlot.isEmpty() || (inSlot.is(item) && inSlot.getCount() < inSlot.getMaxStackSize())) {
+                    int space = inSlot.getMaxStackSize() - inSlot.getCount();
+                    int toAdd = Math.min(remaining, space);
+                    physicalPlan.put(slotIndex, toAdd);
+                    remaining -= toAdd;
+                    if (remaining == 0) break;
+                }
+            }
+        }
+
+        if (remaining > 0) return false;
+        if (simulate) return true;
+
+        // 执行写入
+        if (virtualHandler != null) {
+            for (Map.Entry<Integer, Integer> entry : virtualPlan.entrySet()) {
+                ItemStack inSlot = virtualHandler.getStackInSlot(entry.getKey());
+                if (inSlot.isEmpty()) {
+                    virtualHandler.setStackInSlot(entry.getKey(), new ItemStack(item, entry.getValue()));
+                } else {
+                    inSlot.grow(entry.getValue());
+                    virtualHandler.setStackInSlot(entry.getKey(), inSlot); // 触发更新
+                }
+            }
+        }
+
+        for (Map.Entry<Integer, Integer> entry : physicalPlan.entrySet()) {
+            ItemStack inSlot = container.getSlot(entry.getKey()).getItem();
+            if (inSlot.isEmpty()) {
+                container.getSlot(entry.getKey()).set(new ItemStack(item, entry.getValue()));
+            } else {
+                inSlot.grow(entry.getValue());
+                container.getSlot(entry.getKey()).set(inSlot);
+            }
+        }
+        return true;
+    }
+
+    private static boolean getResources(AbstractContainerMenu container, List<Integer> physicalSlots, IItemHandlerModifiable virtualHandler, Item item, int amount, boolean simulate) {
+        if (amount <= 0) return true;
+        int remaining = amount;
+        Map<Integer, Integer> physicalPlan = new HashMap<>();
+        Map<Integer, Integer> virtualPlan = new HashMap<>();
+
+        // 1. 优先从虚拟卡包提取
+        if (virtualHandler != null) {
+            for (int i = 0; i < virtualHandler.getSlots(); i++) {
+                ItemStack inSlot = virtualHandler.getStackInSlot(i);
+                if (inSlot.is(item)) {
+                    int available = inSlot.getCount();
+                    int toTake = Math.min(remaining, available);
+                    virtualPlan.put(i, toTake);
+                    remaining -= toTake;
+                    if (remaining == 0) break;
+                }
+            }
+        }
+
+        // 2. 从物理背包提取
+        if (remaining > 0) {
+            for (int slotIndex : physicalSlots) {
+                ItemStack inSlot = container.getSlot(slotIndex).getItem();
+                if (inSlot.is(item)) {
+                    int available = inSlot.getCount();
+                    int toTake = Math.min(remaining, available);
+                    physicalPlan.put(slotIndex, toTake);
+                    remaining -= toTake;
+                    if (remaining == 0) break;
+                }
+            }
+        }
+
+        if (remaining > 0) return false;
+        if (simulate) return true;
+
+        // 执行提取
+        if (virtualHandler != null) {
+            for (Map.Entry<Integer, Integer> entry : virtualPlan.entrySet()) {
+                ItemStack inSlot = virtualHandler.getStackInSlot(entry.getKey());
+                inSlot.shrink(entry.getValue());
+                virtualHandler.setStackInSlot(entry.getKey(), inSlot); // 触发更新
+            }
+        }
+
+        for (Map.Entry<Integer, Integer> entry : physicalPlan.entrySet()) {
+            ItemStack inSlot = container.getSlot(entry.getKey()).getItem();
+            inSlot.shrink(entry.getValue());
+            container.getSlot(entry.getKey()).set(inSlot);
+        }
+        return true;
+    }
+
+    private CardItemHandler getCardHandler(ItemStack stack) {
+        if (stack.getItem() instanceof CardEnergy) {
+            return new CardItemHandler(CardEnergyContainer.SLOTS, stack);
+        } else {
+            return BaseCard.getInventory(stack);
+        }
+    }
+
+    public static void playSound(ServerPlayer player, SoundEvent soundEvent) {
         double x = player.getX();
         double y = player.getY();
         double z = player.getZ();
-
-        // Create the packet
         ClientboundSoundPacket packet = new ClientboundSoundPacket(
-                soundEventHolder, // The sound event
-                SoundSource.MASTER, // The sound category
-                x, y, z, // The sound location
-                1, // The volume, 1 is normal, higher is louder
-                1, // The pitch, 1 is normal, higher is higher pitch
-                1 // A random for some reason? (Some sounds have different variants, like the enchanting table success
+                BuiltInRegistries.SOUND_EVENT.wrapAsHolder(soundEvent), 
+                SoundSource.MASTER, x, y, z, 1, 1, 1
         );
-
-        // Send the packet to the player
         player.connection.send(packet);
     }
 
-    public static boolean returnItemToholder(LaserNodeContainer container, ItemStack itemStack, boolean simulate) {
-        if (itemStack.isEmpty()) return true;
-        int neededReturn = itemStack.getCount();
-        Map<Integer, Integer> returnStackMap = new HashMap<>();
-        for (int returnSlot = LaserNodeContainer.CARDSLOTS + 1; returnSlot < LaserNodeContainer.SLOTS; returnSlot++) {
-            ItemStack possibleReturnStack = container.getSlot(returnSlot).getItem();
-            if (possibleReturnStack.isEmpty() || (possibleReturnStack.is(itemStack.getItem()) && possibleReturnStack.getCount() < possibleReturnStack.getMaxStackSize())) {
-                int roomAvailable = possibleReturnStack.getMaxStackSize() - possibleReturnStack.getCount();
-                int amtFit = (neededReturn - roomAvailable < 0) ? neededReturn : neededReturn - roomAvailable;
-                returnStackMap.put(returnSlot, amtFit);
-                neededReturn = neededReturn - amtFit;
-                if (neededReturn == 0) {
-                    if (simulate) {
-                        return true;
-                    }
-                    break;
-                }
-            }
+    private static void dropItem(Player player, ItemStack stack) {
+        if (stack.isEmpty()) return;
+        while (stack.getCount() > 0) {
+            int dropCount = Math.min(stack.getCount(), stack.getMaxStackSize());
+            ItemStack drop = stack.split(dropCount);
+            ItemEntity itemEntity = new ItemEntity(player.level(), player.getX(), player.getY(), player.getZ(), drop);
+            player.level().addFreshEntity(itemEntity);
         }
-        if (neededReturn > 0 || returnStackMap.isEmpty()) //If we didn't return everything we needed to, return false
-            return false;
-        for (Map.Entry<Integer, Integer> entry : returnStackMap.entrySet()) {
-            ItemStack possibleReturnStack = container.getSlot(entry.getKey()).getItem();
-            if (possibleReturnStack.isEmpty()) {
-                container.getSlot(entry.getKey()).set(itemStack);
-                //In *THEORY* this should never be needed but who knows!
-                possibleReturnStack = container.getSlot(entry.getKey()).getItem();
-                possibleReturnStack.setCount(entry.getValue());
-                container.getSlot(entry.getKey()).setByPlayer(possibleReturnStack);
-            } else {
-                possibleReturnStack.grow(entry.getValue());
-                container.getSlot(entry.getKey()).setByPlayer(possibleReturnStack);
-            }
-        }
-        return true; //Since we got here we can assume we updated everything
-    }
-
-    public static boolean getItemFromHolder(LaserNodeContainer container, ItemStack itemStack, boolean simulate) {
-        if (itemStack.isEmpty()) return true;
-        int neededCount = itemStack.getCount();
-        Map<Integer, Integer> findStackMap = new HashMap<>();
-        for (int getSlot = LaserNodeContainer.CARDSLOTS + 1; getSlot < LaserNodeContainer.SLOTS; getSlot++) {
-            ItemStack possibleStack = container.getSlot(getSlot).getItem();
-            if (possibleStack.is(itemStack.getItem())) {
-                int stackAvailable = possibleStack.getCount();
-                int amtFound = (neededCount - stackAvailable < 0) ? neededCount : stackAvailable;
-                findStackMap.put(getSlot, amtFound);
-                neededCount = neededCount - amtFound;
-                if (neededCount == 0) {
-                    if (simulate) {
-                        return true;
-                    }
-                    break;
-                }
-            }
-        }
-        if (neededCount > 0 || findStackMap.isEmpty()) //If we didn't find everything we needed to, return false
-            return false;
-        for (Map.Entry<Integer, Integer> entry : findStackMap.entrySet()) {
-            ItemStack possibleStack = container.getSlot(entry.getKey()).getItem();
-            possibleStack.shrink(entry.getValue());
-            container.getSlot(entry.getKey()).setByPlayer(possibleStack);
-        }
-        return true; //Since we got here we can assume we updated everything
     }
 }

@@ -1,9 +1,12 @@
 package com.direwolf20.laserio.datagen;
 
 import com.direwolf20.laserio.common.LaserIO;
+import com.direwolf20.laserio.common.items.upgrades.OverclockerCard;
 import com.direwolf20.laserio.setup.Registration;
 import net.minecraft.data.PackOutput;
+import net.minecraft.world.item.Item;
 import net.neoforged.neoforge.common.data.LanguageProvider;
+import net.neoforged.neoforge.registries.DeferredHolder;
 
 import static com.direwolf20.laserio.setup.ModSetup.TAB_NAME;
 
@@ -24,7 +27,7 @@ public class LaserIOLanguageProvider extends LanguageProvider {
         add(Registration.Card_Fluid.get(), "Fluid Card");
         add(Registration.Card_Energy.get(), "Energy Card");
         add(Registration.Card_Redstone.get(), "Redstone Card");
-        add(Registration.Card_Chemical.get(), "Chemical Card");
+        //add(Registration.Card_Chemical.get(), "Chemical Card");
         add(Registration.Filter_Basic.get(), "Basic Filter");
         add(Registration.Filter_Count.get(), "Counting Filter");
         add(Registration.Filter_Tag.get(), "Tag Filter");
@@ -32,9 +35,18 @@ public class LaserIOLanguageProvider extends LanguageProvider {
         add(Registration.Filter_NBT.get(), "Data Filter");
         add(Registration.Logic_Chip.get(), "Logic Chip");
         add(Registration.Logic_Chip_Raw.get(), "Raw Logic Chip");
+        
+        // 逻辑超频卡
         add(Registration.Overclocker_Card.get(), "Card Overclocker");
         add(Registration.Overclocker_Node.get(), "Node Overclocker");
+        
         add(Registration.Card_Cloner.get(), "Card Cloner");
+
+        // [新增] 动态生成能量超频卡的名字
+        for (DeferredHolder<Item, OverclockerCard> card : Registration.ENERGY_OVERCLOCKER_CARDS) {
+            int tier = card.get().getEnergyTier();
+            add(card.get(), "Energy Overclocker (Tier " + tier + ")");
+        }
 
         add("screen.laserio.extractamt", "Transfer Amount");
         add("screen.laserio.tickSpeed", "Speed (Ticks)");
@@ -111,6 +123,9 @@ public class LaserIOLanguageProvider extends LanguageProvider {
         add("laserio.tooltip.item.card.Filter", "Filter: ");
         add("laserio.tooltip.item.card.Overclockers", "Overclockers: ");
         add("laserio.tooltip.item.card.None", "None");
+
+        // [新增] 能量超频卡专用的 Tooltip 翻译
+        add("laserio.tooltip.item.energy_overclocker.max_fe", "Max Energy Transfer: %s FE/t");
 
         //Filter Tooltips
         add("laserio.tooltip.item.filter.type", "Type: ");

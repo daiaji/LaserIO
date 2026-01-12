@@ -1,6 +1,10 @@
-// 1.21.1	2024-08-18T17:29:13.4742968	Item Models: laserio
+// 1.21.1	2026-01-12T16:58:54.727558346	Item Models: laserio
 7e73cb282b46a70b1f5087d60802c8011e1f1f3b assets/laserio/models/item/card_cloner.json
 52e0efd1f22b88ec99436633dce050d27b229fc1 assets/laserio/models/item/card_holder.json
+acb3ecbde753c8a81e31a3104f5b65073872a6b1 assets/laserio/models/item/energy_overclocker_card_tier_1.json
+acb3ecbde753c8a81e31a3104f5b65073872a6b1 assets/laserio/models/item/energy_overclocker_card_tier_2.json
+acb3ecbde753c8a81e31a3104f5b65073872a6b1 assets/laserio/models/item/energy_overclocker_card_tier_3.json
+acb3ecbde753c8a81e31a3104f5b65073872a6b1 assets/laserio/models/item/energy_overclocker_card_tier_4.json
 e437c48fed9e84ae9f2efcc79fae92735ab6b2eb assets/laserio/models/item/filter_basic.json
 407cf22e86fd33341e67e7eaaf1349d536332fac assets/laserio/models/item/filter_count.json
 cd8990fc4fed52b07c4d3302a2cc2e9a5f0a7261 assets/laserio/models/item/filter_mod.json

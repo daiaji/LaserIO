@@ -9,7 +9,8 @@ import net.minecraft.resources.ResourceLocation;
 
 public record UpdateRedstoneCardPayload(
         byte mode,
-        byte channel,
+        byte channel,         // 基础网络频道 (用于节点连接)
+        byte redstoneChannel, // 红石逻辑频道 (用于信号传输)
         boolean strong
 ) implements CustomPacketPayload {
     public static final Type<UpdateRedstoneCardPayload> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "update_redstone_card"));
@@ -22,6 +23,7 @@ public record UpdateRedstoneCardPayload(
     public static final StreamCodec<FriendlyByteBuf, UpdateRedstoneCardPayload> STREAM_CODEC = StreamCodec.composite(
             ByteBufCodecs.BYTE, UpdateRedstoneCardPayload::mode,
             ByteBufCodecs.BYTE, UpdateRedstoneCardPayload::channel,
+            ByteBufCodecs.BYTE, UpdateRedstoneCardPayload::redstoneChannel, // [新增]
             ByteBufCodecs.BOOL, UpdateRedstoneCardPayload::strong,
             UpdateRedstoneCardPayload::new
     );

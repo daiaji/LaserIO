@@ -1,6 +1,5 @@
 package com.direwolf20.laserio.common.containers;
 
-
 import com.direwolf20.laserio.common.items.CardHolder;
 import com.direwolf20.laserio.common.items.cards.BaseCard;
 import com.direwolf20.laserio.setup.Registration;
@@ -23,17 +22,23 @@ public class CardChemicalContainer extends CardItemContainer {
     }
 
     public CardChemicalContainer(int windowId, Inventory playerInventory, Player player, ItemStack cardItem) {
+        // 调用父类构造函数 (CardItemContainer)
+        // 注意：父类构造函数可能会执行初始化逻辑，但这里我们需要指定 MenuType 为 CardChemical_Container
         super(Registration.CardChemical_Container.get(), windowId);
         playerEntity = player;
         this.handler = BaseCard.getInventory(cardItem);
         this.playerInventory = new InvWrapper(playerInventory);
         this.cardItem = cardItem;
+        
         if (handler != null) {
+            // 这里调用的是 CardItemContainer 中的 addSlotRange
+            // 只要父类逻辑修改正确（支持逻辑超频卡），这里就会自动生效
             addSlotRange(handler, 0, 80, 5, 1, 18);
             addSlotRange(handler, 1, 153, 5, 1, 18);
             addSlotBox(filterHandler, 0, 44, 25, 5, 18, 3, 18);
             toggleFilterSlots();
         }
+        
         cardHolder = findCardHolders(player);
         if (!cardHolder.isEmpty()) {
             this.cardHolderHandler = new CardHolderItemStackHandler(CardHolderContainer.SLOTS, cardHolder);
