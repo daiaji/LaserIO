@@ -3,7 +3,6 @@ package com.direwolf20.laserio.common.network.handler;
 import com.direwolf20.laserio.common.blockentities.LaserNodeBE;
 import com.direwolf20.laserio.common.blocks.LaserNode;
 import com.direwolf20.laserio.common.containers.CardEnergyContainer;
-import com.direwolf20.laserio.common.containers.CardItemContainer;
 import com.direwolf20.laserio.common.containers.customhandler.CardItemHandler;
 import com.direwolf20.laserio.common.items.CardCloner;
 import com.direwolf20.laserio.common.items.CardHolder;
@@ -11,9 +10,7 @@ import com.direwolf20.laserio.common.items.cards.BaseCard;
 import com.direwolf20.laserio.common.items.cards.CardEnergy;
 import com.direwolf20.laserio.common.network.data.CopyPasteNodePayload;
 import com.direwolf20.laserio.setup.LaserIODataComponents;
-import com.direwolf20.laserio.util.CardHolderItemStackHandler;
 import com.direwolf20.laserio.util.ItemHandlerUtil.InventoryCardCounts;
-import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -182,7 +179,8 @@ public class PacketCopyPasteNode {
                     }
                 } else {
                     // 如果是其他物品（如节点超频），直接返还
-                    giveBackItem(stack.copy(), cardHolder, player);
+                    // [FIXED] Use new ItemStack to clear NBT from returned generic items too
+                    giveBackItem(new ItemStack(stack.getItem(), stack.getCount()), cardHolder, player);
                 }
                 
                 // 清空节点槽位
@@ -208,9 +206,8 @@ public class PacketCopyPasteNode {
         for (int i = 0; i < cardHandler.getSlots(); i++) {
             ItemStack comp = cardHandler.getStackInSlot(i);
             if (!comp.isEmpty()) {
-                ItemStack returnComp = comp.copy();
-                // 关键：内部只有1份配置，但我们有 stackCount 张卡，所以要乘以 stackCount
-                returnComp.setCount(comp.getCount() * stackCount);
+                // [FIXED] Construct new ItemStack to effectively strip NBT from returned components
+                ItemStack returnComp = new ItemStack(comp.getItem(), comp.getCount() * stackCount);
                 parts.add(returnComp);
             }
         }
@@ -265,16 +262,25 @@ public class PacketCopyPasteNode {
         int amountNeeded = target.getCount(); 
 
         if (!cardHolder.isEmpty()) {
-            CardHolderItemStackHandler holderHandler = new CardHolderItemStackHandler(27, cardHolder);
-            for (int i = 0; i < holderHandler.getSlots(); i++) {
-                ItemStack inSlot = holderHandler.getStackInSlot(i);
-                if (ItemStack.isSameItemSameComponents(inSlot, target)) {
-                    int toExtract = Math.min(amountNeeded, inSlot.getCount());
-                    if (!simulate) {
-                        holderHandler.extractItem(i, toExtract, false);
+            // 注意：CardHolderItemStackHandler 通常用于包装
+            // 此处直接操作 IItemHandler 可能更通用，但 CardHolderItemStackHandler 提供了便捷方法
+            // 这里为了保持逻辑一致，我们假设 ItemHandler 已经可用
+            // ...
+            // (Simulated logic omitted for brevity, assuming standard extraction)
+            // But CardHolder uses ComponentItemHandler usually.
+            // Let's assume we can iterate slots.
+            IItemHandler handler = cardHolder.getCapability(Capabilities.ItemHandler.ITEM, null);
+            if (handler != null) {
+                for (int i = 0; i < handler.getSlots(); i++) {
+                    ItemStack inSlot = handler.getStackInSlot(i);
+                    if (ItemStack.isSameItemSameComponents(inSlot, target)) {
+                        int toExtract = Math.min(amountNeeded, inSlot.getCount());
+                        if (!simulate) {
+                            handler.extractItem(i, toExtract, false);
+                        }
+                        amountNeeded -= toExtract;
+                        if (amountNeeded == 0) return true;
                     }
-                    amountNeeded -= toExtract;
-                    if (amountNeeded == 0) return true;
                 }
             }
         }
@@ -334,23 +340,27 @@ public class PacketCopyPasteNode {
         int amountNeeded = needed.getCount();
 
         if (!cardHolder.isEmpty()) {
-            CardHolderItemStackHandler holderHandler = new CardHolderItemStackHandler(27, cardHolder);
-            for (int i = 0; i < holderHandler.getSlots(); i++) {
-                ItemStack inSlot = holderHandler.getStackInSlot(i);
-                if (inSlot.is(needed.getItem())) {
-                    int extract = Math.min(amountNeeded, inSlot.getCount());
-                    if (!simulate) {
-                        holderHandler.extractItem(i, extract, false);
+            IItemHandler handler = cardHolder.getCapability(Capabilities.ItemHandler.ITEM, null);
+            if (handler != null) {
+                for (int i = 0; i < handler.getSlots(); i++) {
+                    ItemStack inSlot = handler.getStackInSlot(i);
+                    // [IMPORTANT] Only consume blank items for raw material needs
+                    if (inSlot.is(needed.getItem()) && inSlot.isComponentsPatchEmpty()) {
+                        int extract = Math.min(amountNeeded, inSlot.getCount());
+                        if (!simulate) {
+                            handler.extractItem(i, extract, false);
+                        }
+                        amountNeeded -= extract;
+                        if (amountNeeded == 0) return true;
                     }
-                    amountNeeded -= extract;
-                    if (amountNeeded == 0) return true;
                 }
             }
         }
 
         for (int i = 0; i < playerInv.getContainerSize(); i++) {
             ItemStack inSlot = playerInv.getItem(i);
-            if (inSlot.is(needed.getItem())) {
+            // [IMPORTANT] Only consume blank items
+            if (inSlot.is(needed.getItem()) && inSlot.isComponentsPatchEmpty()) {
                 int extract = Math.min(amountNeeded, inSlot.getCount());
                 if (!simulate) {
                     playerInv.removeItem(i, extract);

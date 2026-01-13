@@ -2,7 +2,6 @@ package com.direwolf20.laserio.common.network.handler;
 
 import com.direwolf20.laserio.common.blocks.LaserNode;
 import com.direwolf20.laserio.common.containers.CardEnergyContainer;
-import com.direwolf20.laserio.common.containers.CardEnergyContainer;
 import com.direwolf20.laserio.common.containers.CardHolderContainer;
 import com.direwolf20.laserio.common.containers.CardItemContainer;
 import com.direwolf20.laserio.common.containers.LaserNodeContainer;
@@ -14,9 +13,7 @@ import com.direwolf20.laserio.common.items.cards.CardEnergy;
 import com.direwolf20.laserio.common.network.data.CopyPasteCardPayload;
 import com.direwolf20.laserio.util.CardHolderItemStackHandler;
 import net.minecraft.ChatFormatting;
-import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponentPatch;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.protocol.game.ClientboundSoundPacket;
@@ -175,6 +172,7 @@ public class PacketCopyPasteCard {
                     // 过滤器交换
                     if (filterSlotIndex != -1 && !baseExistingFilter.is(baseFilterNeeded.getItem())) {
                         if (!baseExistingFilter.isEmpty()) {
+                            // 返回旧过滤器
                             if (!returnResources(container, physicalSourceSlots, virtualHandler, baseExistingFilter.getItem(), totalExistingFilter, false))
                                 dropItem(player, new ItemStack(baseExistingFilter.getItem(), totalExistingFilter));
                         }
@@ -247,7 +245,8 @@ public class PacketCopyPasteCard {
         if (virtualHandler != null) {
             for (int i = 0; i < virtualHandler.getSlots(); i++) {
                 ItemStack inSlot = virtualHandler.getStackInSlot(i);
-                if (inSlot.isEmpty() || (inSlot.is(item) && inSlot.getCount() < inSlot.getMaxStackSize())) {
+                // [FIX] Strict matching: only merge into blank items (isComponentsPatchEmpty)
+                if (inSlot.isEmpty() || (inSlot.is(item) && inSlot.isComponentsPatchEmpty() && inSlot.getCount() < inSlot.getMaxStackSize())) {
                     int space = inSlot.getMaxStackSize() - inSlot.getCount();
                     int toAdd = Math.min(remaining, space);
                     virtualPlan.put(i, toAdd);
@@ -261,7 +260,8 @@ public class PacketCopyPasteCard {
         if (remaining > 0) {
             for (int slotIndex : physicalSlots) {
                 ItemStack inSlot = container.getSlot(slotIndex).getItem();
-                if (inSlot.isEmpty() || (inSlot.is(item) && inSlot.getCount() < inSlot.getMaxStackSize())) {
+                // [FIX] Strict matching: only merge into blank items
+                if (inSlot.isEmpty() || (inSlot.is(item) && inSlot.isComponentsPatchEmpty() && inSlot.getCount() < inSlot.getMaxStackSize())) {
                     int space = inSlot.getMaxStackSize() - inSlot.getCount();
                     int toAdd = Math.min(remaining, space);
                     physicalPlan.put(slotIndex, toAdd);
@@ -366,7 +366,7 @@ public class PacketCopyPasteCard {
         double y = player.getY();
         double z = player.getZ();
         ClientboundSoundPacket packet = new ClientboundSoundPacket(
-                BuiltInRegistries.SOUND_EVENT.wrapAsHolder(soundEvent), 
+                net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.wrapAsHolder(soundEvent), 
                 SoundSource.MASTER, x, y, z, 1, 1, 1
         );
         player.connection.send(packet);

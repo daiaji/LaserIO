@@ -265,6 +265,13 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
             lastOverclocker = container.getSlot(0).getItem();
         }
 
+        // [修复] 核心逻辑：确保当前数值不超过配置/硬件允许的上限
+        // 如果NBT中存的是旧的大数值，这里会被纠正为 1000 或当前卡片上限
+        int maxLimit = getMaxLimit();
+        if (currentEnergyExtractAmt > maxLimit) {
+            currentEnergyExtractAmt = maxLimit;
+        }
+
         addAmtButton();
         addLimitButton();
 
@@ -397,14 +404,30 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
         }
     }
 
+    // [新增] 辅助方法：计算当前允许的最大FE传输速率
+    private int getMaxLimit() {
+        int max = Config.MAX_FE_NO_TIERS.get();
+        if (CardEnergyContainer.SLOTS == 1 && container.slots.size() > 0) {
+            ItemStack stack = container.getSlot(0).getItem();
+            if (!stack.isEmpty() && stack.getItem() instanceof OverclockerCard card) {
+                int energyTier = card.getEnergyTier();
+                List<? extends Integer> tiers = Config.MAX_FE_TIERS.get();
+                if (energyTier > 0 && energyTier <= tiers.size()) {
+                    max = tiers.get(energyTier - 1);
+                }
+            }
+        }
+        return max;
+    }
+
     public void changeAmount(int change) {
         if (hasShiftDown()) change *= 10;
         if (hasControlDown()) change *= 100;
         if (hasAltDown()) change *= 1000;
-        int max = Config.MAX_FE_NO_TIERS.get();
-        if (CardEnergyContainer.SLOTS == 1 && container.getSlot(0).hasItem() && container.getSlot(0).getItem().getItem() instanceof OverclockerCard card) {
-            max = Config.MAX_FE_TIERS.get().get(card.getEnergyTier() - 1);
-        }
+        
+        // [修复] 使用统一方法获取最大值
+        int max = getMaxLimit();
+        
         if (change < 0) {
             if (currentMode == 0) {
                 currentPriority = (short) (Math.max(currentPriority + change, -4096));
@@ -602,16 +625,10 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
         ItemStack newOverclocker = container.getSlot(0).getItem();
         if (ItemStack.isSameItem(newOverclocker, lastOverclocker)) return;
 
-        int max = Config.MAX_FE_NO_TIERS.get();
-        if (!newOverclocker.isEmpty() && newOverclocker.getItem() instanceof OverclockerCard card) {
-            int energyTier = card.getEnergyTier();
-            List<? extends Integer> tiers = Config.MAX_FE_TIERS.get();
-            if (energyTier > 0 && energyTier <= tiers.size()) {
-                max = tiers.get(energyTier - 1);
-            }
-        }
-        currentEnergyExtractAmt = max;
         lastOverclocker = newOverclocker.copy();
+        
+        // [修复] 使用统一方法获取最大值
+        currentEnergyExtractAmt = getMaxLimit();
 
         if (currentMode != 0) {
             Button amountButton = buttons.get("amount");
