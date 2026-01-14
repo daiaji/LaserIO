@@ -1,6 +1,5 @@
 package com.direwolf20.laserio.common.network.handler;
 
-import com.direwolf20.laserio.common.containers.CardChemicalContainer;
 import com.direwolf20.laserio.common.containers.CardFluidContainer;
 import com.direwolf20.laserio.common.containers.CardItemContainer;
 import com.direwolf20.laserio.common.containers.FilterCountContainer;
@@ -8,6 +7,7 @@ import com.direwolf20.laserio.common.containers.customhandler.FilterCountHandler
 import com.direwolf20.laserio.common.containers.customslot.FilterBasicSlot;
 import com.direwolf20.laserio.common.items.filters.FilterCount;
 import com.direwolf20.laserio.common.network.data.GhostSlotPayload;
+import com.direwolf20.laserio.integration.mekanism.common.containers.CardChemicalContainer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;

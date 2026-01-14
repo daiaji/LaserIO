@@ -12,8 +12,8 @@ import com.direwolf20.laserio.common.blockentities.LaserConnectorBE;
 import com.direwolf20.laserio.common.blockentities.LaserNodeBE;
 import com.direwolf20.laserio.common.items.cards.BaseCard;
 import com.direwolf20.laserio.common.items.cards.CardRedstone;
-import com.direwolf20.laserio.integration.mekanism.client.screens.CardChemicalScreen; // [修复] 修正导入路径
-import com.direwolf20.laserio.integration.mekanism.common.items.cards.CardChemical;
+import com.direwolf20.laserio.integration.mekanism.client.screens.CardChemicalScreen;
+import com.direwolf20.laserio.integration.mekanism.CardChemical;
 import com.direwolf20.laserio.integration.mekanism.MekanismIntegration;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.item.ItemProperties;

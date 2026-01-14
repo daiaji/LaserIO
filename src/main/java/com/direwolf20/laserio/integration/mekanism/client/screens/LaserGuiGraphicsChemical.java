@@ -1,8 +1,7 @@
-package com.direwolf20.laserio.client.screens;
+package com.direwolf20.laserio.integration.mekanism.client.screens;
 
 import com.direwolf20.laserio.common.items.filters.FilterCount;
-import com.direwolf20.laserio.integration.mekanism.client.screens.CardChemicalScreen; // [修复] 修正导入路径
-import com.direwolf20.laserio.integration.mekanism.util.MekanismStatics; // [修复] 修正导入路径
+import com.direwolf20.laserio.integration.mekanism.MekanismStatics;
 import com.direwolf20.laserio.util.MiscTools;
 import com.mojang.blaze3d.vertex.PoseStack;
 import mekanism.api.chemical.ChemicalStack;

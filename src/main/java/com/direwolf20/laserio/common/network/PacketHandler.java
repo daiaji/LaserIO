@@ -4,6 +4,8 @@ import com.direwolf20.laserio.common.LaserIO;
 import com.direwolf20.laserio.common.network.data.*;
 import com.direwolf20.laserio.common.network.handler.*;
 import com.direwolf20.laserio.integration.mekanism.MekanismIntegration;
+import com.direwolf20.laserio.integration.mekanism.common.network.data.NodeParticlesChemicalPayload;
+import com.direwolf20.laserio.integration.mekanism.common.network.handler.PacketNodeParticlesChemical;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 

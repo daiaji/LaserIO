@@ -1,4 +1,4 @@
-package com.direwolf20.laserio.common.network.data;
+package com.direwolf20.laserio.integration.mekanism.common.network.data;
 
 import com.direwolf20.laserio.common.LaserIO;
 import com.direwolf20.laserio.integration.mekanism.client.chemicalparticle.ParticleDataChemical;

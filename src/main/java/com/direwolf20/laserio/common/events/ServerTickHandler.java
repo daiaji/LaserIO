@@ -1,9 +1,9 @@
 package com.direwolf20.laserio.common.events;
 
-import com.direwolf20.laserio.common.network.data.NodeParticlesChemicalPayload;
 import com.direwolf20.laserio.common.network.data.NodeParticlesFluidPayload;
 import com.direwolf20.laserio.common.network.data.NodeParticlesPayload;
 import com.direwolf20.laserio.integration.mekanism.client.chemicalparticle.ParticleDataChemical;
+import com.direwolf20.laserio.integration.mekanism.common.network.data.NodeParticlesChemicalPayload;
 import com.direwolf20.laserio.util.MiscTools;
 import com.direwolf20.laserio.util.ParticleData;
 import com.direwolf20.laserio.util.ParticleDataFluid;

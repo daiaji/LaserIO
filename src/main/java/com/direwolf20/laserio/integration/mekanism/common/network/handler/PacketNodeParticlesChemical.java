@@ -1,9 +1,9 @@
-package com.direwolf20.laserio.common.network.handler;
+package com.direwolf20.laserio.integration.mekanism.common.network.handler;
 
 import com.direwolf20.laserio.common.blockentities.LaserNodeBE;
-import com.direwolf20.laserio.common.network.data.NodeParticlesChemicalPayload;
 import com.direwolf20.laserio.integration.mekanism.client.chemicalparticle.ParticleDataChemical;
 import com.direwolf20.laserio.integration.mekanism.client.chemicalparticle.ParticleRenderDataChemical;
+import com.direwolf20.laserio.integration.mekanism.common.network.data.NodeParticlesChemicalPayload;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.Direction;
 import net.minecraft.core.GlobalPos;

@@ -16,6 +16,7 @@ import com.direwolf20.laserio.common.items.cards.CardItem;
 import com.direwolf20.laserio.common.items.cards.CardRedstone;
 import com.direwolf20.laserio.common.items.filters.*;
 import com.direwolf20.laserio.common.network.data.*;
+import com.direwolf20.laserio.integration.mekanism.client.screens.LaserGuiGraphicsChemical; // [修复] 更新导入路径
 import com.direwolf20.laserio.setup.Config;
 import com.direwolf20.laserio.util.MiscTools;
 import com.mojang.blaze3d.platform.InputConstants;
@@ -23,7 +24,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.screens.Screen; // [修复] 补全 Screen 导包
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
@@ -37,7 +38,7 @@ import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.client.gui.widget.ExtendedButton;
-import net.neoforged.neoforge.items.IItemHandler; // [修复] 补全 IItemHandler 导包
+import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.HashMap;
