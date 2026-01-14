@@ -1,10 +1,11 @@
 package com.direwolf20.laserio.client.renderer;
 
-import com.direwolf20.laserio.client.blockentityrenders.LaserNodeBERender;
+import com.direwolf20.laserio.client.events.ClientEvents;
 import com.direwolf20.laserio.common.blockentities.LaserConnectorAdvBE;
 import com.direwolf20.laserio.common.blockentities.LaserNodeBE;
 import com.direwolf20.laserio.common.blockentities.basebe.BaseLaserBE;
 import com.direwolf20.laserio.common.items.LaserWrench;
+import com.direwolf20.laserio.integration.ModIntegration;
 import com.direwolf20.laserio.setup.Registration;
 import com.direwolf20.laserio.util.CardRender;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -12,7 +13,6 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.player.Player;
@@ -24,14 +24,13 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
-import java.awt.*;
+import java.awt.Color;
 import java.util.Queue;
 import java.util.Set;
 
-import static com.direwolf20.laserio.client.events.ClientEvents.getWrench;
-
 public class RenderUtils {
-    
+
+    // [注意] BlockOverlay 使用 POSITION_COLOR 格式，不需要 UV 和 Light
     public static void render(Matrix4f matrix, VertexConsumer builder, BlockPos pos, Color color, float scale) {
         float r = color.getRed() / 255f;
         float g = color.getGreen() / 255f;
@@ -45,37 +44,37 @@ public class RenderUtils {
         float endY = 1 - startY;
         float endZ = 1 - startZ;
 
-        // Down (Y-)
+        // Down
         builder.addVertex(matrix, startX, startY, startZ).setColor(r, g, b, a);
         builder.addVertex(matrix, endX, startY, startZ).setColor(r, g, b, a);
         builder.addVertex(matrix, endX, startY, endZ).setColor(r, g, b, a);
         builder.addVertex(matrix, startX, startY, endZ).setColor(r, g, b, a);
 
-        // Up (Y+)
+        // Up
         builder.addVertex(matrix, startX, endY, startZ).setColor(r, g, b, a);
         builder.addVertex(matrix, startX, endY, endZ).setColor(r, g, b, a);
         builder.addVertex(matrix, endX, endY, endZ).setColor(r, g, b, a);
         builder.addVertex(matrix, endX, endY, startZ).setColor(r, g, b, a);
 
-        // North (Z-)
+        // North
         builder.addVertex(matrix, startX, startY, startZ).setColor(r, g, b, a);
         builder.addVertex(matrix, startX, endY, startZ).setColor(r, g, b, a);
         builder.addVertex(matrix, endX, endY, startZ).setColor(r, g, b, a);
         builder.addVertex(matrix, endX, startY, startZ).setColor(r, g, b, a);
 
-        // South (Z+)
+        // South
         builder.addVertex(matrix, startX, startY, endZ).setColor(r, g, b, a);
         builder.addVertex(matrix, endX, startY, endZ).setColor(r, g, b, a);
         builder.addVertex(matrix, endX, endY, endZ).setColor(r, g, b, a);
         builder.addVertex(matrix, startX, endY, endZ).setColor(r, g, b, a);
 
-        // West (X-)
+        // West
         builder.addVertex(matrix, startX, startY, startZ).setColor(r, g, b, a);
         builder.addVertex(matrix, startX, startY, endZ).setColor(r, g, b, a);
         builder.addVertex(matrix, startX, endY, endZ).setColor(r, g, b, a);
         builder.addVertex(matrix, startX, endY, startZ).setColor(r, g, b, a);
 
-        // East (X+)
+        // East
         builder.addVertex(matrix, endX, startY, startZ).setColor(r, g, b, a);
         builder.addVertex(matrix, endX, endY, startZ).setColor(r, g, b, a);
         builder.addVertex(matrix, endX, endY, endZ).setColor(r, g, b, a);
@@ -106,7 +105,7 @@ public class RenderUtils {
                 BlockPos endBlock = be.getWorldPos(target);
                 Color color = be.getColor();
                 Player player = Minecraft.getInstance().player;
-                ItemStack wrench = getWrench(player);
+                ItemStack wrench = ClientEvents.getWrench(player);
                 
                 int alpha = (wrench.getItem() instanceof LaserWrench) ? Math.min(color.getAlpha() + be.getWrenchAlpha(), 255) : color.getAlpha();
                 
@@ -118,13 +117,12 @@ public class RenderUtils {
                 drawLaser(builder, positionMatrix, endLaser, startLaser, color.getRed() / 255f, color.getGreen() / 255f, color.getBlue() / 255f, alpha / 255f, 0.025f, v, v + diffY * 1.5, be);
             }
 
-            // [FIXED] Registration.LASER_CONNECTOR_ADV_BLOCK -> Registration.LaserConnectorAdv
             if (be instanceof LaserConnectorAdvBE laserConnectorAdvBE && laserConnectorAdvBE.getPartnerGlobalPos() != null && level.getBlockState(be.getBlockPos()).getBlock().equals(Registration.LaserConnectorAdv.get())) {
                 Direction facing = level.getBlockState(be.getBlockPos()).getValue(BlockStateProperties.FACING).getOpposite();
                 BlockPos endBlock = laserConnectorAdvBE.getBlockPos().relative(facing);
                 Color color = be.getColor();
                 Player player = Minecraft.getInstance().player;
-                ItemStack wrench = getWrench(player);
+                ItemStack wrench = ClientEvents.getWrench(player);
                 int alpha = (wrench.getItem() instanceof LaserWrench) ? Math.min(color.getAlpha() + be.getWrenchAlpha(), 255) : color.getAlpha();
                 
                 Vector3f endLaser = calculateEndAdvConnector(startBlock, endBlock, facing);
@@ -135,13 +133,7 @@ public class RenderUtils {
         buffer.endBatch(MyRenderType.CONNECTING_LASER);
     }
 
-    public static void drawConnectingLasers(Set<LaserNodeBE> beConnectingRenders, PoseStack matrixStackIn) {
-        MultiBufferSource.BufferSource buffer = Minecraft.getInstance().renderBuffers().bufferSource();
-        Vec3 projectedView = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
-        
-        float alpha = 1f;
-        float thickness = 0.0175f;
-
+    public static void drawConnectingLasersMainBeam(Set<LaserNodeBE> beConnectingRenders, PoseStack matrixStackIn, MultiBufferSource.BufferSource buffer, Vec3 projectedView, float alpha, float thickness) {
         VertexConsumer builder = buffer.getBuffer(MyRenderType.LASER_MAIN_BEAM);
         for (LaserNodeBE be : beConnectingRenders) {
             Level level = be.getLevel();
@@ -160,8 +152,10 @@ public class RenderUtils {
             matrixStackIn.popPose();
         }
         buffer.endBatch(MyRenderType.LASER_MAIN_BEAM);
+    }
 
-        builder = buffer.getBuffer(MyRenderType.LASER_MAIN_CORE);
+    public static void drawConnectingLasersMainCore(Set<LaserNodeBE> beConnectingRenders, PoseStack matrixStackIn, MultiBufferSource.BufferSource buffer, Vec3 projectedView, float alpha, float thickness) {
+        VertexConsumer builder = buffer.getBuffer(MyRenderType.LASER_MAIN_CORE);
         for (LaserNodeBE be : beConnectingRenders) {
             Level level = be.getLevel();
             if (level == null) continue;
@@ -179,6 +173,23 @@ public class RenderUtils {
             matrixStackIn.popPose();
         }
         buffer.endBatch(MyRenderType.LASER_MAIN_CORE);
+    }
+
+    // [完美融合] UEL 的 Oculus 兼容性逻辑：调整绘制顺序
+    public static void drawConnectingLasers(Set<LaserNodeBE> beConnectingRenders, PoseStack matrixStackIn) {
+        MultiBufferSource.BufferSource buffer = Minecraft.getInstance().renderBuffers().bufferSource();
+        Vec3 projectedView = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
+        
+        float alpha = 1f;
+        float thickness = 0.0175f;
+
+        if (ModIntegration.OCULUS.isLoaded()) {
+            drawConnectingLasersMainCore(beConnectingRenders, matrixStackIn, buffer, projectedView, alpha, thickness);
+            drawConnectingLasersMainBeam(beConnectingRenders, matrixStackIn, buffer, projectedView, alpha, thickness);
+        } else {
+            drawConnectingLasersMainBeam(beConnectingRenders, matrixStackIn, buffer, projectedView, alpha, thickness);
+            drawConnectingLasersMainCore(beConnectingRenders, matrixStackIn, buffer, projectedView, alpha, thickness);
+        }
     }
 
     public static Vector3f calculateEndAdvConnector(BlockPos startBlock, BlockPos endBlock, Direction facing) {
@@ -217,6 +228,8 @@ public class RenderUtils {
         return adjustedVec;
     }
 
+    // [关键修复] 严格对齐 VertexFormat (POSITION_COLOR_TEX_LIGHTMAP)
+    // 移除了 .setOverlay() 以防止 1.21+ 崩溃
     public static void drawLaser(VertexConsumer builder, Matrix4f positionMatrix, Vector3f from, Vector3f to, float r, float g, float b, float alpha, float thickness, double v1, double v2, BlockEntity be) {
         Vector3f adjustedVec = adjustBeamToEyes(from, to, be);
         adjustedVec.mul(thickness);
@@ -229,25 +242,21 @@ public class RenderUtils {
         builder.addVertex(positionMatrix, p1.x(), p1.y(), p1.z())
                 .setColor(r, g, b, alpha)
                 .setUv(1, (float) v1)
-                .setOverlay(OverlayTexture.NO_OVERLAY)
                 .setLight(LightTexture.FULL_BRIGHT);
 
         builder.addVertex(positionMatrix, p3.x(), p3.y(), p3.z())
                 .setColor(r, g, b, alpha)
                 .setUv(1, (float) v2)
-                .setOverlay(OverlayTexture.NO_OVERLAY)
                 .setLight(LightTexture.FULL_BRIGHT);
 
         builder.addVertex(positionMatrix, p4.x(), p4.y(), p4.z())
                 .setColor(r, g, b, alpha)
                 .setUv(0, (float) v2)
-                .setOverlay(OverlayTexture.NO_OVERLAY)
                 .setLight(LightTexture.FULL_BRIGHT);
 
         builder.addVertex(positionMatrix, p2.x(), p2.y(), p2.z())
                 .setColor(r, g, b, alpha)
                 .setUv(0, (float) v1)
-                .setOverlay(OverlayTexture.NO_OVERLAY)
                 .setLight(LightTexture.FULL_BRIGHT);
     }
 }

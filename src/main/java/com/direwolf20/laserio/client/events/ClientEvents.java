@@ -10,6 +10,7 @@ import com.direwolf20.laserio.common.items.CardCloner;
 import com.direwolf20.laserio.common.items.LaserWrench;
 import com.direwolf20.laserio.common.items.cards.BaseCard;
 import com.direwolf20.laserio.common.network.data.CopyPasteCardPayload;
+import com.direwolf20.laserio.integration.ModIntegration;
 import com.direwolf20.laserio.setup.Config;
 import com.direwolf20.laserio.setup.LaserIODataComponents;
 import com.direwolf20.laserio.util.VectorHelper;
@@ -23,7 +24,6 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.ClipContext; // 确保导入
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.BlockHitResult;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -36,6 +36,12 @@ import java.awt.Color;
 
 public class ClientEvents {
 
+    // [完美融合] 渲染阶段逻辑：
+    // Vanilla: 使用 AFTER_BLOCK_ENTITIES，在玻璃(Translucent)之前渲染，解决遮挡问题。
+    // Oculus: 使用 AFTER_TRANSLUCENT_BLOCKS，适配光影渲染管线。
+    private static final RenderLevelStageEvent.Stage DEFAULT_RENDERING_STAGE = RenderLevelStageEvent.Stage.AFTER_BLOCK_ENTITIES;
+    private static final RenderLevelStageEvent.Stage OCULUS_RENDERING_STAGE = RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS;
+
     @SubscribeEvent
     public static void onScreenMouseClickPre(ScreenEvent.MouseButtonPressed.Pre event) {
         Minecraft mc = Minecraft.getInstance();
@@ -43,6 +49,7 @@ public class ClientEvents {
 
         if (!(event.getScreen() instanceof AbstractContainerScreen<?> containerScreen)) return;
 
+        // 右键复制卡片功能的网络包逻辑 (来自修改版)
         boolean isCopy = (event.getButton() == 0);
         boolean isPaste = (event.getButton() == 1);
         if (!isCopy && !isPaste) return;
@@ -53,21 +60,20 @@ public class ClientEvents {
         ItemStack carriedItem = mc.player.containerMenu.getCarried();
 
         if (!carriedItem.isEmpty() && carriedItem.getItem() instanceof CardCloner) {
-            // 基础检查：必须是 BaseCard
             if (!hoveredSlot.hasItem() || !(hoveredSlot.getItem().getItem() instanceof BaseCard)) {
                 return;
             }
-
-            // 发送数据包
             PacketDistributor.sendToServer(new CopyPasteCardPayload(hoveredSlot.index, isCopy));
-            // 取消原版事件
-            event.setCanceled(true); 
+            event.setCanceled(true);
         }
     }
 
     @SubscribeEvent
     public static void renderWorldLastEvent(RenderLevelStageEvent evt) {
-        if (evt.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) return;
+        // [完美融合] 动态阶段检查
+        RenderLevelStageEvent.Stage renderingStage = ModIntegration.OCULUS.isLoaded() ? OCULUS_RENDERING_STAGE : DEFAULT_RENDERING_STAGE;
+        
+        if (evt.getStage() != renderingStage) return;
 
         Player player = Minecraft.getInstance().player;
         if (player == null) return;
@@ -132,7 +138,6 @@ public class ClientEvents {
         ItemStack wrench = getWrench(player);
         if (wrench.isEmpty()) return;
 
-        // [修复] 使用 ClipContext 的全名，防止导入丢失
         BlockHitResult lookingAt = VectorHelper.getLookingAt(player, net.minecraft.world.level.ClipContext.Fluid.NONE, Config.MAX_INTERACTION_RANGE.get());
         if (lookingAt == null || !(player.level().getBlockState(lookingAt.getBlockPos()).getBlock() instanceof LaserConnectorAdv)) return;
 
