@@ -1,5 +1,6 @@
-package com.direwolf20.laserio.client.screens;
+package com.direwolf20.laserio.integration.mekanism.client.screens;
 
+import com.direwolf20.laserio.client.screens.CardItemScreen;
 import com.direwolf20.laserio.client.screens.widgets.NumberButton;
 import com.direwolf20.laserio.client.screens.widgets.ToggleButton;
 import com.direwolf20.laserio.common.LaserIO;
@@ -11,18 +12,20 @@ import com.direwolf20.laserio.common.network.data.GhostSlotPayload;
 import com.direwolf20.laserio.common.network.data.OpenNodePayload;
 import com.direwolf20.laserio.common.network.data.UpdateCardPayload;
 import com.direwolf20.laserio.common.network.data.UpdateFilterPayload;
-import com.direwolf20.laserio.integration.mekanism.CardChemical;
-import com.direwolf20.laserio.integration.mekanism.MekanismStatics;
+import com.direwolf20.laserio.integration.mekanism.CardChemical; // [修复] 修正导包路径
+import com.direwolf20.laserio.integration.mekanism.MekanismStatics; // [修复] 修正导包路径
 import com.direwolf20.laserio.setup.Config;
 import mekanism.api.chemical.ChemicalStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.Screen; // [修复] 补全 Screen 导包
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.lwjgl.glfw.GLFW;
@@ -48,6 +51,12 @@ public class CardChemicalScreen extends CardItemScreen {
         this.currentChemicalExtractAmt = CardChemical.getChemicalExtractAmt(card);
         super.init();
         this.renderChemicals = true;
+    }
+
+    // [新增] 重写验证逻辑：只允许包含化学品的物品
+    @Override
+    public boolean isStackValidForFilter(ItemStack stack) {
+        return MekanismStatics.doesItemStackHoldChemicals(stack);
     }
 
     @Override

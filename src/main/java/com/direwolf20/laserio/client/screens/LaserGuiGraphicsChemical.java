@@ -1,6 +1,8 @@
 package com.direwolf20.laserio.client.screens;
 
 import com.direwolf20.laserio.common.items.filters.FilterCount;
+import com.direwolf20.laserio.integration.mekanism.client.screens.CardChemicalScreen; // [修复] 修正导入路径
+import com.direwolf20.laserio.integration.mekanism.util.MekanismStatics; // [修复] 修正导入路径
 import com.direwolf20.laserio.util.MiscTools;
 import com.mojang.blaze3d.vertex.PoseStack;
 import mekanism.api.chemical.ChemicalStack;
@@ -16,8 +18,6 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
-
-import static com.direwolf20.laserio.integration.mekanism.MekanismStatics.getFirstChemicalOnItemStack;
 
 public class LaserGuiGraphicsChemical extends GuiGraphics {
     public Minecraft minecraft;
@@ -107,7 +107,7 @@ public class LaserGuiGraphicsChemical extends GuiGraphics {
         } else if (!MiscTools.inBounds(cardChemicalScreen.filterStartX, cardChemicalScreen.filterStartY, cardChemicalScreen.filterEndX - cardChemicalScreen.filterStartX, cardChemicalScreen.filterEndY - cardChemicalScreen.filterStartY, pX, pY)) {
             return false;
         }
-        ChemicalStack chemicalStack = getFirstChemicalOnItemStack(pStack);
+        ChemicalStack chemicalStack = MekanismStatics.getFirstChemicalOnItemStack(pStack);
         return !chemicalStack.isEmpty() && Minecraft.getInstance().getTextureAtlas(InventoryMenu.BLOCK_ATLAS).apply(chemicalStack.getChemical().getIcon()) != null;
     }
 
@@ -117,7 +117,7 @@ public class LaserGuiGraphicsChemical extends GuiGraphics {
             super.renderItem(pStack, pX, pY, something);
             return;
         }
-        ChemicalStack chemicalStack = getFirstChemicalOnItemStack(pStack); //We checked above to ensure this isn't empty
+        ChemicalStack chemicalStack = MekanismStatics.getFirstChemicalOnItemStack(pStack); //We checked above to ensure this isn't empty
         TextureAtlasSprite chemicalSprite = Minecraft.getInstance().getTextureAtlas(InventoryMenu.BLOCK_ATLAS).apply(chemicalStack.getChemical().getIcon());
         int chemicalColor = chemicalStack.getChemicalColorRepresentation();
 

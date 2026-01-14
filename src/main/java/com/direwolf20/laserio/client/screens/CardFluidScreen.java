@@ -16,7 +16,7 @@ import com.direwolf20.laserio.setup.Config;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.Screen; // [修复] 确保包含 Screen
 import net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
@@ -62,6 +62,12 @@ public class CardFluidScreen extends CardItemScreen {
         Minecraft minecraft = Minecraft.getInstance();
         BlockEntityWithoutLevelRenderer blockentitywithoutlevelrenderer = new BlockEntityWithoutLevelRenderer(minecraft.getBlockEntityRenderDispatcher(), minecraft.getEntityModels());
         this.renderFluids = true;
+    }
+
+    // [新增] 重写验证逻辑：只允许包含流体的物品
+    @Override
+    public boolean isStackValidForFilter(ItemStack stack) {
+        return FilterCount.doesItemStackHoldFluids(stack);
     }
 
     @Override

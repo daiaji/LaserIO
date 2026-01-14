@@ -1,11 +1,13 @@
 package com.direwolf20.laserio.integration.jei.handlers;
 
-import com.direwolf20.laserio.client.screens.CardChemicalScreen; // [修改] 修正导入路径
+import com.direwolf20.laserio.client.screens.CardFluidScreen; // [新增]
 import com.direwolf20.laserio.client.screens.CardItemScreen;
 import com.direwolf20.laserio.client.screens.FilterCountScreen;
 import com.direwolf20.laserio.common.containers.customslot.FilterBasicSlot;
+import com.direwolf20.laserio.common.items.filters.FilterCount; // [新增]
 import com.direwolf20.laserio.common.network.data.GhostSlotPayload;
 import com.direwolf20.laserio.integration.ModIntegration;
+import com.direwolf20.laserio.integration.mekanism.client.screens.CardChemicalScreen; // [修复] 修正导入路径
 import com.direwolf20.laserio.integration.mekanism.MekanismStatics;
 import mekanism.api.IMekanismAccess;
 import mekanism.api.chemical.ChemicalStack;
@@ -33,14 +35,21 @@ public class GhostIngredientHandler<T extends AbstractContainerScreen<?>> implem
 
             Rect2i bounds = new Rect2i(gui.getGuiLeft() + slot.x, gui.getGuiTop() + slot.y, 16, 16);
 
-            // 处理物品拖拽
-            if (ingredient.getIngredient() instanceof ItemStack) {
-                // 如果是化学卡界面，且物品不包含化学品，则忽略
+            // 处理物品拖拽 (ItemStack)
+            if (ingredient.getIngredient() instanceof ItemStack itemStack) {
+                // 1. 化学卡：只接受化学品容器
                 if (ModIntegration.MEKANISM.isLoaded() && gui instanceof CardChemicalScreen) {
-                    if (!MekanismStatics.doesItemStackHoldChemicals((ItemStack) ingredient.getIngredient())) {
+                    if (!MekanismStatics.doesItemStackHoldChemicals(itemStack)) {
                         continue;
                     }
                 }
+                // 2. 流体卡：只接受流体容器
+                else if (gui instanceof CardFluidScreen) {
+                    if (!FilterCount.doesItemStackHoldFluids(itemStack)) {
+                        continue;
+                    }
+                }
+                // 3. 物品卡：逻辑上接受所有物品，不做额外限制
 
                 targets.add(new Target<I>() {
                     @Override
@@ -48,20 +57,24 @@ public class GhostIngredientHandler<T extends AbstractContainerScreen<?>> implem
 
                     @Override
                     public void accept(I ingredient) {
-                        ItemStack itemStack = (ItemStack) ingredient;
-                        slot.set((gui instanceof CardItemScreen) ? itemStack.copy() : itemStack);
-                        // FilterCountScreen 需要特殊处理以保持客户端同步
+                        ItemStack stack = (ItemStack) ingredient;
+                        slot.set((gui instanceof CardItemScreen) ? stack.copy() : stack);
                         if (gui instanceof FilterCountScreen filterCountGui) {
-                            filterCountGui.getMenu().handler.setStackInSlot(slot.index, itemStack);
+                            filterCountGui.getMenu().handler.setStackInSlot(slot.index, stack);
                         }
-                        PacketDistributor.sendToServer(new GhostSlotPayload(slot.index, itemStack, itemStack.getCount(), -1));
+                        PacketDistributor.sendToServer(new GhostSlotPayload(slot.index, stack, stack.getCount(), -1));
                     }
                 });
             } 
-            // 处理流体拖拽
+            // 处理流体拖拽 (FluidStack)
             else if (ingredient.getIngredient() instanceof FluidStack) {
-                // 如果是化学卡界面，禁止拖拽流体
+                // 1. 化学卡：不接受流体
                 if (ModIntegration.MEKANISM.isLoaded() && gui instanceof CardChemicalScreen) {
+                    continue;
+                }
+                // 2. 物品卡：不接受流体 (即使可以转为桶，通常也是误操作，且用户明确指出这是错误的)
+                // 除非该界面是流体卡 (CardFluidScreen extends CardItemScreen)
+                if (gui instanceof CardItemScreen && !(gui instanceof CardFluidScreen)) {
                     continue;
                 }
 
@@ -81,9 +94,13 @@ public class GhostIngredientHandler<T extends AbstractContainerScreen<?>> implem
                     }
                 });
             } 
-            // 处理 Mekanism 化学品拖拽 (如果加载了模组)
-            // [Fix] 移除 <?> 泛型通配符，适配 Mekanism 1.21 API
+            // 处理 Mekanism 化学品拖拽 (ChemicalStack)
             else if (ModIntegration.MEKANISM.isLoaded() && ingredient.getIngredient() instanceof ChemicalStack chemicalStack) {
+                // 仅化学卡接受化学品
+                if (!(gui instanceof CardChemicalScreen)) {
+                    continue;
+                }
+
                 targets.add(new Target<I>() {
                     @Override
                     public Rect2i getArea() { return bounds; }

@@ -23,7 +23,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.Screen; // [修复] 补全 Screen 导包
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
@@ -37,7 +37,7 @@ import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.client.gui.widget.ExtendedButton;
-import net.neoforged.neoforge.items.IItemHandler;
+import net.neoforged.neoforge.items.IItemHandler; // [修复] 补全 IItemHandler 导包
 import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.HashMap;
@@ -97,6 +97,10 @@ public class CardItemScreen extends AbstractContainerScreen<CardItemContainer> {
 
     public boolean isCardHolderUIShown() {
         return showCardHolderUI;
+    }
+
+    public boolean isStackValidForFilter(ItemStack stack) {
+        return true;
     }
 
     @Override
@@ -236,7 +240,6 @@ public class CardItemScreen extends AbstractContainerScreen<CardItemContainer> {
     }
 
     public void toggleHolderSlots() {
-        // [修复] 使用 FILTERSLOTS (旧命名约定)
         for (int i = CardItemContainer.SLOTS + CardItemContainer.FILTERSLOTS; i < (CardItemContainer.SLOTS + CardItemContainer.FILTERSLOTS + CardHolderContainer.SLOTS); i++) {
             if (i >= container.slots.size()) continue;
             Slot slot = container.getSlot(i);
@@ -331,6 +334,7 @@ public class CardItemScreen extends AbstractContainerScreen<CardItemContainer> {
             } else if (filter.getItem() instanceof FilterCount) {
                 showAllow = false;
                 showNBT = true;
+                removeWidget(buttons.get("allowList"));
             } else if (filter.getItem() instanceof FilterNBT) {
                 showAllow = true;
                 showNBT = false;
@@ -589,6 +593,9 @@ public class CardItemScreen extends AbstractContainerScreen<CardItemContainer> {
                 showAllow = false;
                 showNBT = true;
                 removeWidget(buttons.get("allowList"));
+            } else if (filter.getItem() instanceof FilterNBT) {
+                showAllow = true;
+                showNBT = false;
             }
             if (BaseCard.getNamedTransferMode(card) == BaseCard.TransferMode.SENSOR) {
                 showAllow = false;
@@ -837,11 +844,22 @@ public class CardItemScreen extends AbstractContainerScreen<CardItemContainer> {
                 ItemStack stack = this.menu.getCarried();// getMinecraft().player.inventoryMenu.getCarried();
                 stack = stack.copy().split(hoveredSlot.getMaxStackSize()); // Limit to slot limit
                 if (ItemStack.isSameItemSameComponents(stack, container.cardItem)) return true;
+
+                // [修复] 核心逻辑：在放入前检查物品类型
+                if (!stack.isEmpty() && !isStackValidForFilter(stack)) {
+                    return true; // 如果类型不对，直接跳过，不执行放入操作
+                }
+
                 hoveredSlot.set(stack); // Temporarily update the client for continuity purposes
                 PacketDistributor.sendToServer(new GhostSlotPayload(hoveredSlot.index, stack, stack.getCount(), -1));
             } else if (filter.getItem() instanceof FilterCount) {
                 ItemStack stack = this.menu.getCarried();// getMinecraft().player.inventoryMenu.getCarried();
                 if (!stack.isEmpty()) {
+                    // [修复] 核心逻辑：在放入前检查物品类型
+                    if (!isStackValidForFilter(stack)) {
+                        return true; // 类型不对，禁止放入
+                    }
+
                     stack = stack.copy();
                     if (ItemStack.isSameItemSameComponents(stack, container.cardItem)) return true;
                     hoveredSlot.set(stack); // Temporarily update the client for continuity purposes

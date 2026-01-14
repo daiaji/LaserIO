@@ -12,9 +12,10 @@ import com.direwolf20.laserio.common.blockentities.LaserConnectorBE;
 import com.direwolf20.laserio.common.blockentities.LaserNodeBE;
 import com.direwolf20.laserio.common.items.cards.BaseCard;
 import com.direwolf20.laserio.common.items.cards.CardRedstone;
-import com.direwolf20.laserio.integration.mekanism.CardChemical;
+import com.direwolf20.laserio.integration.mekanism.client.screens.CardChemicalScreen; // [修复] 修正导入路径
+import com.direwolf20.laserio.integration.mekanism.common.items.cards.CardChemical;
 import com.direwolf20.laserio.integration.mekanism.MekanismIntegration;
-import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider; // [新增]
+import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.item.ItemProperties;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FastColor;
@@ -31,13 +32,11 @@ import net.neoforged.neoforge.common.NeoForge;
 
 import java.awt.Color;
 
-// [修复] 移除了 bus = Bus.MOD，NeoForge 会自动识别 IModBusEvent 并路由到 Mod 总线
 @EventBusSubscriber(modid = LaserIO.MODID, value = Dist.CLIENT)
 public class ClientSetup {
     
     @SubscribeEvent
     public static void init(final FMLClientSetupEvent event) {
-        // [保持] 这里的 ClientEvents 和 KeybindHandler 是运行时监听器，需要手动注册到游戏总线
         NeoForge.EVENT_BUS.register(ClientEvents.class);
         NeoForge.EVENT_BUS.register(KeybindHandler.class);
 
@@ -98,9 +97,6 @@ public class ClientSetup {
         event.registerBlockEntityRenderer(Registration.LaserConnector_BE.get(), LaserConnectorBERender::new);
         event.registerBlockEntityRenderer(Registration.LaserNode_BE.get(), LaserNodeBERender::new);
         
-        // [修复] 强制类型转换解决泛型不兼容问题
-        // LaserConnectorBERender 是为 LaserConnectorBE 设计的，但 LaserConnectorAdvBE 继承自它，
-        // 所以在运行时使用同一个渲染器是安全的。我们需要骗过编译器。
         event.registerBlockEntityRenderer(Registration.LaserConnectorAdv_BE.get(), 
             (BlockEntityRendererProvider<LaserConnectorAdvBE>) (Object) (BlockEntityRendererProvider<LaserConnectorBE>) LaserConnectorBERender::new);
     }
