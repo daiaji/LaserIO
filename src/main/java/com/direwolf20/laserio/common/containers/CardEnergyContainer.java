@@ -7,7 +7,6 @@ import com.direwolf20.laserio.common.containers.customslot.CardHolderSlot;
 import com.direwolf20.laserio.common.containers.customslot.CardOverclockSlot;
 import com.direwolf20.laserio.common.items.CardHolder;
 import com.direwolf20.laserio.common.items.cards.BaseCard;
-import com.direwolf20.laserio.common.items.cards.CardEnergy;
 import com.direwolf20.laserio.common.items.upgrades.OverclockerCard;
 import com.direwolf20.laserio.setup.Config;
 import com.direwolf20.laserio.setup.Registration;
@@ -31,8 +30,6 @@ import javax.annotation.Nullable;
 import java.util.UUID;
 
 public class CardEnergyContainer extends AbstractContainerMenu {
-    // [修复] 不要在静态初始化中使用 Config.MAX_FE_TIERS.get()
-    // 使用默认值列表判断，或者直接设为 1 (只要有默认值就是 1)
     public static final int SLOTS = (Config.DEFAULT_TIER_VALUES.isEmpty()) ? 0 : 1;
 
     public CardItemHandler handler;
@@ -113,7 +110,7 @@ public class CardEnergyContainer extends AbstractContainerMenu {
     @Override
     public ItemStack quickMoveStack(Player playerIn, int index) {
         if (SLOTS == 0 || cardItem.getCount() > 1) return ItemStack.EMPTY;
-        
+
         ItemStack itemStack = ItemStack.EMPTY;
         Slot slot = this.slots.get(index);
 
@@ -123,7 +120,7 @@ public class CardEnergyContainer extends AbstractContainerMenu {
             if (ItemStack.isSameItemSameComponents(itemStack, cardItem)) return ItemStack.EMPTY;
 
             int cardHolderSlots = (!cardHolder.isEmpty()) ? CardHolderContainer.SLOTS : 0;
-            
+
             int overclockSlotEnd = SLOTS;
             int cardHolderStart = overclockSlotEnd;
             int cardHolderEnd = cardHolderStart + cardHolderSlots;
@@ -138,12 +135,12 @@ public class CardEnergyContainer extends AbstractContainerMenu {
                 }
                 slot.onQuickCraft(stack, itemStack);
             } else { // 放入超频槽
-                if (stack.getItem() instanceof OverclockerCard card && card.getEnergyTier() > 0) {
+                if (stack.getItem() instanceof OverclockerCard) {
                     if (!this.moveItemStackTo(stack, 0, overclockSlotEnd, false)) {
                         if (index < playerInvStart) {
-                             if (!this.moveItemStackTo(stack, playerInvStart, playerInvEnd, true)) return ItemStack.EMPTY;
+                            if (!this.moveItemStackTo(stack, playerInvStart, playerInvEnd, true)) return ItemStack.EMPTY;
                         } else if (cardHolderSlots > 0) {
-                             if (!this.moveItemStackTo(stack, cardHolderStart, cardHolderEnd, false)) return ItemStack.EMPTY;
+                            if (!this.moveItemStackTo(stack, cardHolderStart, cardHolderEnd, false)) return ItemStack.EMPTY;
                         }
                     }
                 } else {

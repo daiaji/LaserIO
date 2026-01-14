@@ -33,8 +33,6 @@ import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.Supplier;
 
 import static com.direwolf20.laserio.client.particles.ModParticles.PARTICLE_TYPES;
@@ -53,18 +51,7 @@ public class Registration {
 
     public static final DeferredRegister<Item> ITEMS_MEKANISM = DeferredRegister.create(Registries.ITEM, MODID);
 
-    public static final List<DeferredHolder<Item, OverclockerCard>> ENERGY_OVERCLOCKER_CARDS = new ArrayList<>();
-
     public static void init(IEventBus eventBus) {
-        // [修复] 使用 DEFAULT_TIER_VALUES.size() 避免 NPE
-        int tierCount = Config.DEFAULT_TIER_VALUES.size();
-        for (int i = 1; i <= tierCount; i++) {
-            int currentTier = i;
-            DeferredHolder<Item, OverclockerCard> card = ITEMS.register("energy_overclocker_card_tier_" + i,
-                    () -> new OverclockerCard(currentTier));
-            ENERGY_OVERCLOCKER_CARDS.add(card);
-        }
-
         BLOCKS.register(eventBus);
         ITEMS.register(eventBus);
         if (MekanismIntegration.isLoaded()) {
@@ -79,7 +66,6 @@ public class Registration {
         LaserIODataComponents.COMPONENTS.register(eventBus);
     }
 
-    // ... (中间的静态注册代码保持不变，省略以节省空间，直接用你原文件中的即可) ...
     //Blocks
     public static final DeferredHolder<Block, LaserConnector> LaserConnector = BLOCKS.register("laser_connector", LaserConnector::new);
     public static final DeferredHolder<Item, BlockItem> LaserConnector_ITEM = ITEMS.register("laser_connector", () -> new BlockItem(LaserConnector.get(), new Item.Properties()));
@@ -119,8 +105,8 @@ public class Registration {
     public static final DeferredHolder<Item, LogicChipRaw> Logic_Chip_Raw = ITEMS.register("logic_chip_raw", LogicChipRaw::new);
     public static final DeferredHolder<Item, LogicChip> Logic_Chip = ITEMS.register("logic_chip", LogicChip::new);
     
-    // [注意] 这里的逻辑超频卡定义要保留
-    public static final DeferredHolder<Item, OverclockerCard> Overclocker_Card = ITEMS.register("overclocker_card", () -> new OverclockerCard(-1));
+    // 逻辑超频卡
+    public static final DeferredHolder<Item, OverclockerCard> Overclocker_Card = ITEMS.register("overclocker_card", OverclockerCard::new);
     public static final DeferredHolder<Item, OverclockerNode> Overclocker_Node = ITEMS.register("overclocker_node", OverclockerNode::new);
 
     //Containers

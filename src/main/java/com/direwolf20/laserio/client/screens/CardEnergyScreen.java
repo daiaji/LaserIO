@@ -17,14 +17,12 @@ import com.direwolf20.laserio.common.items.upgrades.OverclockerCard;
 import com.direwolf20.laserio.common.network.data.OpenNodePayload;
 import com.direwolf20.laserio.common.network.data.UpdateCardPayload;
 import com.direwolf20.laserio.setup.Config;
-import com.direwolf20.laserio.setup.Registration;
 import com.direwolf20.laserio.util.MiscTools;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
@@ -43,13 +41,8 @@ import java.util.List;
 import java.util.Map;
 
 public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContainer> {
-    // 逻辑：如果开启了 SLOTS (Config中有层级)，使用 energycard.png (请确保这张图有槽位)
-    // 如果 SLOTS 为 0，使用 redstonecard.png (这张图通常没有右上角的槽位)
     private final ResourceLocation GUI = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/" + ((CardEnergyContainer.SLOTS == 0) ? "redstone" : "energy") + "card.png");
     private static final ResourceLocation CARD_HOLDER_GUI = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/cardholder_node.png");
-    
-    // [删除] 不再需要引用 itemcard.png
-    // private static final ResourceLocation ITEM_CARD_GUI = ...
 
     private final CardEnergyContainer container;
     private byte currentMode;
@@ -85,7 +78,7 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
         this.container = container;
         this.card = container.cardItem;
         this.showCardHolderUI = !container.cardHolder.isEmpty();
-        
+
         if (CardEnergyContainer.SLOTS == 1 && container.slots.size() > 0) {
             lastOverclocker = container.getSlot(0).getItem().copy();
         }
@@ -101,7 +94,7 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
         toggleHolderSlots();
         super.render(guiGraphics, mouseX, mouseY, partialTicks);
         this.renderTooltip(guiGraphics, mouseX, mouseY);
-        
+
         Button modeButton = buttons.get("mode");
         if (MiscTools.inBounds(modeButton.getX(), modeButton.getY(), modeButton.getWidth(), modeButton.getHeight(), mouseX, mouseY)) {
             MutableComponent[] translatableComponents = {
@@ -265,8 +258,6 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
             lastOverclocker = container.getSlot(0).getItem();
         }
 
-        // [修复] 核心逻辑：确保当前数值不超过配置/硬件允许的上限
-        // 如果NBT中存的是旧的大数值，这里会被纠正为 1000 或当前卡片上限
         int maxLimit = getMaxLimit();
         if (currentEnergyExtractAmt > maxLimit) {
             currentEnergyExtractAmt = maxLimit;
@@ -404,16 +395,17 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
         }
     }
 
-    // [新增] 辅助方法：计算当前允许的最大FE传输速率
     private int getMaxLimit() {
         int max = Config.MAX_FE_NO_TIERS.get();
         if (CardEnergyContainer.SLOTS == 1 && container.slots.size() > 0) {
             ItemStack stack = container.getSlot(0).getItem();
-            if (!stack.isEmpty() && stack.getItem() instanceof OverclockerCard card) {
-                int energyTier = card.getEnergyTier();
+            if (!stack.isEmpty() && stack.getItem() instanceof OverclockerCard) {
+                int count = stack.getCount();
                 List<? extends Integer> tiers = Config.MAX_FE_TIERS.get();
-                if (energyTier > 0 && energyTier <= tiers.size()) {
-                    max = tiers.get(energyTier - 1);
+                if (count > 0 && count <= tiers.size()) {
+                    max = tiers.get(count - 1);
+                } else if (count > tiers.size()) {
+                    max = tiers.get(tiers.size() - 1);
                 }
             }
         }
@@ -424,10 +416,9 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
         if (hasShiftDown()) change *= 10;
         if (hasControlDown()) change *= 100;
         if (hasAltDown()) change *= 1000;
-        
-        // [修复] 使用统一方法获取最大值
+
         int max = getMaxLimit();
-        
+
         if (change < 0) {
             if (currentMode == 0) {
                 currentPriority = (short) (Math.max(currentPriority + change, -4096));
@@ -500,7 +491,6 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
 
     }
 
-    // [核心修改] 移除了手动 blit 的代码
     @Override
     protected void renderBg(GuiGraphics guiGraphics, float partialTicks, int mouseX, int mouseY) {
         RenderSystem.setShaderTexture(0, GUI);
@@ -618,16 +608,15 @@ public class CardEnergyScreen extends AbstractContainerScreen<CardEnergyContaine
     @Override
     protected void slotClicked(Slot slot, int inventorySlotIndex, int depositedAmount, ClickType clickType) {
         super.slotClicked(slot, inventorySlotIndex, depositedAmount, clickType);
-        
+
         if (CardEnergyContainer.SLOTS != 1) return;
         if (container.slots.size() <= 0) return;
 
         ItemStack newOverclocker = container.getSlot(0).getItem();
-        if (ItemStack.isSameItem(newOverclocker, lastOverclocker)) return;
+        if (ItemStack.isSameItem(newOverclocker, lastOverclocker) && newOverclocker.getCount() == lastOverclocker.getCount()) return;
 
         lastOverclocker = newOverclocker.copy();
-        
-        // [修复] 使用统一方法获取最大值
+
         currentEnergyExtractAmt = getMaxLimit();
 
         if (currentMode != 0) {

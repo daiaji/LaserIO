@@ -15,7 +15,7 @@ import com.direwolf20.laserio.common.network.data.UpdateFilterPayload;
 import com.direwolf20.laserio.setup.Config;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button; // [新增] 修复找不到 Button 类的问题
+import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
@@ -32,6 +32,7 @@ import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 import net.neoforged.neoforge.fluids.capability.IFluidHandlerItem;
 import net.neoforged.neoforge.network.PacketDistributor;
 
+import java.util.List;
 import java.util.Optional;
 
 public class CardFluidScreen extends CardItemScreen {
@@ -114,6 +115,19 @@ public class CardFluidScreen extends CardItemScreen {
         if (Screen.hasShiftDown()) change *= 10;
         if (Screen.hasControlDown()) change *= 100;
         int overClockerCount = container.getSlot(1).getItem().getCount();
+
+        int maxAmt;
+        List<? extends Integer> tiers = Config.MAX_FLUID_TIERS.get();
+        if (!tiers.isEmpty()) {
+            // Mode B: Tiers
+            if (overClockerCount == 0) maxAmt = Config.BASE_MILLI_BUCKETS_FLUID.get();
+            else if (overClockerCount <= tiers.size()) maxAmt = tiers.get(overClockerCount - 1);
+            else maxAmt = tiers.get(tiers.size() - 1);
+        } else {
+            // Mode A: Linear
+            maxAmt = Math.max(overClockerCount * Config.MULTIPLIER_MILLI_BUCKETS_FLUID.get(), Config.BASE_MILLI_BUCKETS_FLUID.get());
+        }
+
         if (change < 0) {
             if (currentMode == 0) {
                 currentPriority = (short) (Math.max(currentPriority + change, -4096));
@@ -124,7 +138,7 @@ public class CardFluidScreen extends CardItemScreen {
             if (currentMode == 0) {
                 currentPriority = (short) (Math.min(currentPriority + change, 4096));
             } else {
-                currentFluidExtractAmt = (Math.min(currentFluidExtractAmt + change, Math.max(overClockerCount * Config.MULTIPLIER_MILLI_BUCKETS_FLUID.get(), Config.BASE_MILLI_BUCKETS_FLUID.get())));
+                currentFluidExtractAmt = (Math.min(currentFluidExtractAmt + change, maxAmt));
             }
         }
     }
@@ -184,7 +198,6 @@ public class CardFluidScreen extends CardItemScreen {
 
     @Override
     protected void slotClicked(Slot slot, int inventorySlotIndex, int depositedAmount, ClickType clickType) {
-        // 调用父类 (主要是 super.super，CardItemScreen 的逻辑对流体不适用)
         super.slotClicked(slot, inventorySlotIndex, depositedAmount, clickType);
 
         int newOverclockerCount = container.getSlot(1).getItem().getCount();
@@ -192,8 +205,21 @@ public class CardFluidScreen extends CardItemScreen {
             return;
         }
 
-        // 计算流体特定的数值
-        currentFluidExtractAmt = Math.max(newOverclockerCount * Config.MULTIPLIER_MILLI_BUCKETS_FLUID.get(), Config.BASE_MILLI_BUCKETS_FLUID.get());
+        List<? extends Integer> tiers = Config.MAX_FLUID_TIERS.get();
+        if (!tiers.isEmpty()) {
+            // Mode B: Tiers
+            if (newOverclockerCount == 0) {
+                currentFluidExtractAmt = Config.BASE_MILLI_BUCKETS_FLUID.get();
+            } else if (newOverclockerCount <= tiers.size()) {
+                currentFluidExtractAmt = tiers.get(newOverclockerCount - 1);
+            } else {
+                currentFluidExtractAmt = tiers.get(tiers.size() - 1);
+            }
+        } else {
+            // Mode A: Linear
+            currentFluidExtractAmt = Math.max(newOverclockerCount * Config.MULTIPLIER_MILLI_BUCKETS_FLUID.get(), Config.BASE_MILLI_BUCKETS_FLUID.get());
+        }
+
         currentTicks = Math.max(Config.MIN_TICKS_FLUID.get().get(newOverclockerCount), currentTicks);
 
         lastOverclockerCount = newOverclockerCount;

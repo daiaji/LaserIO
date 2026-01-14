@@ -16,8 +16,8 @@ public class Config {
     public static final String SUBCATEGORY_ENERGY = "energy_card";
     public static final String SUBCATEGORY_CHEMICAL = "chemical_card";
 
-    // [新增] 定义默认层级列表常量，供 Registration 在配置加载前使用
-    public static final List<Integer> DEFAULT_TIER_VALUES = List.of(4000, 16000, 32000, 100000);
+    // [配置] 这里定义能量卡的默认层级值，与流体类似逻辑
+    public static final List<Integer> DEFAULT_TIER_VALUES = List.of(4000, 16000, 128000, Integer.MAX_VALUE);
 
     public static final ModConfigSpec COMMON_CONFIG;
     public static final ModConfigSpec CLIENT_CONFIG;
@@ -26,15 +26,22 @@ public class Config {
     public static final ModConfigSpec.IntValue MAX_NODES_DISTANCE;
     public static final ModConfigSpec.IntValue MAX_INTERACTION_RANGE;
 
+    // --- Fluid ---
     public static final ModConfigSpec.IntValue BASE_MILLI_BUCKETS_FLUID;
     public static final ModConfigSpec.IntValue MULTIPLIER_MILLI_BUCKETS_FLUID;
+    public static final ModConfigSpec.BooleanValue USE_FLUID_TIERS_MODE;
+    public static final ModConfigSpec.ConfigValue<List<? extends Integer>> MAX_FLUID_TIERS;
+
+    // --- Energy ---
+    public static final ModConfigSpec.ConfigValue<List<? extends Integer>> MAX_FE_TIERS;
+    public static final ModConfigSpec.IntValue MAX_FE_NO_TIERS;
+    public static final ModConfigSpec.IntValue MAX_FE_TICK;
+
+    // --- Chemical ---
     public static final ModConfigSpec.IntValue BASE_MILLI_BUCKETS_CHEMICAL;
     public static final ModConfigSpec.IntValue MULTIPLIER_MILLI_BUCKETS_CHEMICAL;
 
-    public static final ModConfigSpec.ConfigValue<List<? extends Integer>> MAX_FE_TIERS;
-    public static final ModConfigSpec.IntValue MAX_FE_TICK;
-    public static final ModConfigSpec.IntValue MAX_FE_NO_TIERS;
-
+    // --- Ticks ---
     public static final ModConfigSpec.ConfigValue<List<? extends Integer>> MIN_TICKS_FLUID;
     public static final ModConfigSpec.ConfigValue<List<? extends Integer>> MIN_TICKS_ITEM;
     public static final ModConfigSpec.ConfigValue<List<? extends Integer>> MIN_TICKS_CHEMICAL;
@@ -50,29 +57,43 @@ public class Config {
 
         COMMON_BUILDER.comment("Card settings").push(CATEGORY_CARD);
 
+        // Fluid Configs
         COMMON_BUILDER.comment("Fluid Card").push(SUBCATEGORY_FLUID);
-        BASE_MILLI_BUCKETS_FLUID = COMMON_BUILDER.comment("Millibuckets for Fluid Cards without Overclockers installed")
+        BASE_MILLI_BUCKETS_FLUID = COMMON_BUILDER.comment("Millibuckets for Fluid Cards without Overclockers installed (Linear Mode & Tier Mode Base)")
                 .defineInRange("base_milli_buckets_fluid", 5000, 0, Integer.MAX_VALUE);
-        MULTIPLIER_MILLI_BUCKETS_FLUID = COMMON_BUILDER.comment("Multiplier for Overclocker Cards - Number of Overclockers * this value = max millibuckets")
+        MULTIPLIER_MILLI_BUCKETS_FLUID = COMMON_BUILDER.comment("Multiplier for Overclocker Cards (Linear Mode Only) - Formula: Max(Count * Multiplier, Base)")
                 .defineInRange("multiplier_milli_buckets_fluid", 10000, 0, Integer.MAX_VALUE);
+
+        // [修改] 默认开启层级模式，以支持你想要的 int 极限
+        USE_FLUID_TIERS_MODE = COMMON_BUILDER.comment("If true, use the 'max_fluid_tiers' list instead of the linear multiplier formula. Required for MAX_INT fluid transfer.")
+                .define("use_fluid_tiers_mode", true);
+
+        // [修改] 推荐数值：32B -> 128B -> 512B -> 无限
+        MAX_FLUID_TIERS = COMMON_BUILDER.comment("Maximum Fluid extraction (mB) per tick based on overclockers count (1-4). Only used if 'use_fluid_tiers_mode' is true.")
+                .defineList("max_fluid_tiers", List.of(32000, 128000, 512000, Integer.MAX_VALUE), o -> o instanceof Integer);
+
         MIN_TICKS_FLUID = COMMON_BUILDER.comment("Minimum ticks between fluid extractions based on overclockers count (0-4)")
                 .defineList("min_ticks_fluid", List.of(20, 15, 10, 5, 1), o -> o instanceof Integer);
         COMMON_BUILDER.pop();
 
+        // Energy Configs
         COMMON_BUILDER.comment("Energy Card").push(SUBCATEGORY_ENERGY);
-        
-        // [修改] 使用 DEFAULT_TIER_VALUES 常量
-        MAX_FE_TIERS = COMMON_BUILDER.comment("Maximum FE extraction per tick based on overclockers count (1-4)")
+
+        MAX_FE_NO_TIERS = COMMON_BUILDER.comment("Base FE extract amount per operation without overclockers")
+                .defineInRange("max_fe_no_tiers", 1000, 1, Integer.MAX_VALUE);
+
+        // [修改] 能量卡也同步使用包含 MAX_INT 的默认列表
+        MAX_FE_TIERS = COMMON_BUILDER.comment("Maximum FE extraction per operation based on overclockers count (1-4)")
                 .defineList("max_fe_tiers", DEFAULT_TIER_VALUES, o -> o instanceof Integer);
 
         MAX_FE_TICK = COMMON_BUILDER.comment("Maximum FE/T for Energy Cards (Hard Cap)")
-                .defineInRange("max_fe_tick", 1000000, 0, Integer.MAX_VALUE);
-        MAX_FE_NO_TIERS = COMMON_BUILDER.comment("Base FE extract amount without overclockers")
-                .defineInRange("max_fe_no_tiers", 1000, 1, Integer.MAX_VALUE);
+                .defineInRange("max_fe_tick", Integer.MAX_VALUE, 0, Integer.MAX_VALUE);
+
         MIN_TICKS_ENERGY = COMMON_BUILDER.comment("Minimum ticks for energy transfer")
                 .defineInRange("min_ticks_energy", 1, 1, 1200);
         COMMON_BUILDER.pop();
 
+        // Chemical Configs
         COMMON_BUILDER.comment("Chemical Card").push(SUBCATEGORY_CHEMICAL);
         BASE_MILLI_BUCKETS_CHEMICAL = COMMON_BUILDER.comment("Millibuckets for Chemical Cards without Overclockers installed (Only is Mekanism is installed)")
                 .defineInRange("base_milli_buckets_chemical", 15000, 0, Integer.MAX_VALUE);
@@ -82,6 +103,7 @@ public class Config {
                 .defineList("min_ticks_chemical", List.of(20, 15, 10, 5, 1), o -> o instanceof Integer);
         COMMON_BUILDER.pop();
 
+        // Item Configs
         COMMON_BUILDER.comment("Item Card").push("item_card");
         MIN_TICKS_ITEM = COMMON_BUILDER.comment("Minimum ticks between item extractions based on overclockers count (0-4)")
                 .defineList("min_ticks_item", List.of(20, 15, 10, 5, 1), o -> o instanceof Integer);

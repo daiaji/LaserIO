@@ -1,31 +1,46 @@
-# eclipse
-bin
+# Eclipse
+bin/
 *.launch
-.settings
-.metadata
+.settings/
+.metadata/
 .classpath
 .project
 
-# idea
-out
+# IntelliJ IDEA
+out/
 *.ipr
 *.iws
 *.iml
-.idea
+.idea/
 
-# gradle
-build
-.gradle
+# Gradle
+build/
+.gradle/
+gradle/wrapper/gradle-wrapper.properties
 
-# other
-eclipse
-run
-runs
-run-data
+# Visual Studio Code
+.vscode/
 
-# Files from Forge MDK
-forge*changelog.txt
+# Minecraft / Forge / NeoForge Run Directories
+run/
+runs/
+run-data/
+logs/
+crash-reports/
+debug.log
+debug.log.gz
+latest.log
 
-.vscode
+# Data Generator Cache (Crucial to ignore)
+src/generated/resources/.cache/
+
+# Local Mods & APIs (Development environment only)
 /extra-mods/
 /extra-api/
+
+# Files from Forge MDK (Legacy)
+forge*changelog.txt
+
+# Operating System Files
+.DS_Store
+Thumbs.db

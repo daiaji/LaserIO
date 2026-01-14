@@ -16,9 +16,9 @@ public class CardOverclockSlot extends SlotItemHandler {
 
     @Override
     public boolean mayPlace(@Nonnull ItemStack stack) {
-        // 必须启用，且物品必须是有效的 Tier > 0 的超频卡
         if (!enabled) return false;
-        return stack.getItem() instanceof OverclockerCard card && card.getEnergyTier() > 0;
+        // 只要是 OverclockerCard 即可，允许堆叠
+        return stack.getItem() instanceof OverclockerCard;
     }
 
     @Override
@@ -30,13 +30,14 @@ public class CardOverclockSlot extends SlotItemHandler {
         this.enabled = enabled;
     }
 
+    // 允许堆叠到 4 (LaserIO 逻辑上限)
     @Override
     public int getMaxStackSize() {
-        return 1;
+        return 4;
     }
 
     @Override
     public int getMaxStackSize(@Nonnull ItemStack stack) {
-        return 1;
+        return 4;
     }
 }
