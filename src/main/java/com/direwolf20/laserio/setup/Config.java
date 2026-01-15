@@ -70,10 +70,16 @@ public class Config {
 
         // [修改] 推荐数值：32B -> 128B -> 512B -> 无限
         MAX_FLUID_TIERS = COMMON_BUILDER.comment("Maximum Fluid extraction (mB) per tick based on overclockers count (1-4). Only used if 'use_fluid_tiers_mode' is true.")
-                .defineList("max_fluid_tiers", List.of(32000, 128000, 512000, Integer.MAX_VALUE), o -> o instanceof Integer);
+                .defineList("max_fluid_tiers",
+                        List.of(32000, 128000, 512000, Integer.MAX_VALUE),
+                        () -> 0,
+                        o -> o instanceof Integer);
 
         MIN_TICKS_FLUID = COMMON_BUILDER.comment("Minimum ticks between fluid extractions based on overclockers count (0-4)")
-                .defineList("min_ticks_fluid", List.of(20, 15, 10, 5, 1), o -> o instanceof Integer);
+                .defineList("min_ticks_fluid",
+                        List.of(20, 15, 10, 5, 1),
+                        () -> 20,
+                        o -> o instanceof Integer);
         COMMON_BUILDER.pop();
 
         // Energy Configs
@@ -84,7 +90,10 @@ public class Config {
 
         // [修改] 能量卡也同步使用包含 MAX_INT 的默认列表
         MAX_FE_TIERS = COMMON_BUILDER.comment("Maximum FE extraction per operation based on overclockers count (1-4)")
-                .defineList("max_fe_tiers", DEFAULT_TIER_VALUES, o -> o instanceof Integer);
+                .defineList("max_fe_tiers",
+                        DEFAULT_TIER_VALUES,
+                        () -> 1000,
+                        o -> o instanceof Integer);
 
         MAX_FE_TICK = COMMON_BUILDER.comment("Maximum FE/T for Energy Cards (Hard Cap)")
                 .defineInRange("max_fe_tick", Integer.MAX_VALUE, 0, Integer.MAX_VALUE);
@@ -100,13 +109,19 @@ public class Config {
         MULTIPLIER_MILLI_BUCKETS_CHEMICAL = COMMON_BUILDER.comment("Multiplier for Overclocker Cards - Number of Overclockers * this value = max millibuckets  (Only is Mekanism is installed)")
                 .defineInRange("multiplier_milli_buckets_chemical", 60000, 0, Integer.MAX_VALUE);
         MIN_TICKS_CHEMICAL = COMMON_BUILDER.comment("Minimum ticks between chemical extractions based on overclockers count (0-4)")
-                .defineList("min_ticks_chemical", List.of(20, 15, 10, 5, 1), o -> o instanceof Integer);
+                .defineList("min_ticks_chemical",
+                        List.of(20, 15, 10, 5, 1),
+                        () -> 20,
+                        o -> o instanceof Integer);
         COMMON_BUILDER.pop();
 
         // Item Configs
         COMMON_BUILDER.comment("Item Card").push("item_card");
         MIN_TICKS_ITEM = COMMON_BUILDER.comment("Minimum ticks between item extractions based on overclockers count (0-4)")
-                .defineList("min_ticks_item", List.of(20, 15, 10, 5, 1), o -> o instanceof Integer);
+                .defineList("min_ticks_item",
+                        List.of(20, 15, 10, 5, 1),
+                        () -> 20,
+                        o -> o instanceof Integer);
         COMMON_BUILDER.pop();
 
         COMMON_BUILDER.pop();

@@ -1,5 +1,6 @@
 package com.direwolf20.laserio.integration.mekanism;
 
+import mekanism.api.MekanismAPI;
 import mekanism.api.chemical.Chemical;
 import mekanism.api.chemical.ChemicalStack;
 import mekanism.api.chemical.IChemicalHandler;
@@ -60,6 +61,7 @@ public class MekanismStatics {
     }
 
     public static Stream<? extends TagKey<?>> getTagsFromItemStack(ItemStack itemStack) {
-        return getAllChemicalsOnItemStack(itemStack).stream().flatMap(Chemical::getTags);
+        return getAllChemicalsOnItemStack(itemStack).stream()
+                .flatMap(chemical -> MekanismAPI.CHEMICAL_REGISTRY.wrapAsHolder(chemical).tags());
     }
 }

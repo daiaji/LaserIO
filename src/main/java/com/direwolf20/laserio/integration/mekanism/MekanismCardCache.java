@@ -10,6 +10,7 @@ import it.unimi.dsi.fastutil.objects.Reference2BooleanMap;
 import it.unimi.dsi.fastutil.objects.Reference2BooleanOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Reference2IntMap;
 import it.unimi.dsi.fastutil.objects.Reference2IntOpenHashMap;
+import mekanism.api.MekanismAPI;
 import mekanism.api.chemical.Chemical;
 import mekanism.api.chemical.ChemicalStack;
 import mekanism.api.chemical.IChemicalHandler;
@@ -68,11 +69,17 @@ public class MekanismCardCache {
         return filterCacheChemical.computeIfAbsent(testStack.getChemical(), (Chemical key) -> {
             boolean matches;
             if (filterCard.getItem() instanceof FilterTag) {
-                matches = key.getTags().map(tagKey -> tagKey.location().toString().toLowerCase(Locale.ROOT)).anyMatch(baseCardCache.filterTags::contains);
+                matches = MekanismAPI.CHEMICAL_REGISTRY.wrapAsHolder(key).tags()
+                        .map(tagKey -> tagKey.location().toString().toLowerCase(Locale.ROOT))
+                        .anyMatch(baseCardCache.filterTags::contains);
             } else {
                 Predicate<ChemicalStack> validityPredicate;
                 if (filterCard.getItem() instanceof FilterMod) {
-                    validityPredicate = stack -> stack.getTypeRegistryName().getNamespace().equals(key.getRegistryName().getNamespace());
+                    validityPredicate = stack -> {
+                        var stackRes = MekanismAPI.CHEMICAL_REGISTRY.getKey(stack.getChemical());
+                        var keyRes = MekanismAPI.CHEMICAL_REGISTRY.getKey(key);
+                        return stackRes != null && keyRes != null && stackRes.getNamespace().equals(keyRes.getNamespace());
+                    };
                 } else {
                     validityPredicate = stack -> key == stack.getChemical();
                 }

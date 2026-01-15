@@ -14,6 +14,7 @@ import com.direwolf20.laserio.util.*;
 import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap;
 import mekanism.api.Action;
+import mekanism.api.MekanismAPI;
 import mekanism.api.chemical.Chemical;
 import mekanism.api.chemical.ChemicalStack;
 import mekanism.api.chemical.IChemicalHandler;
@@ -128,7 +129,8 @@ public class MekanismCache {
             outloop:
             for (int tank = 0; tank < chemicalHandler.getChemicalTanks(); tank++) { //Loop through all the tanks
                 ChemicalStack stackInTank = chemicalHandler.getChemicalInTank(tank);
-                for (TagKey<?> tagKey : stackInTank.getChemical().getTags().toList()) {
+                var holder = MekanismAPI.CHEMICAL_REGISTRY.wrapAsHolder(stackInTank.getChemical());
+                for (TagKey<?> tagKey : holder.tags().toList()) {
                     String chemicalTag = tagKey.location().toString().toLowerCase(Locale.ROOT);
                     if (tags.contains(chemicalTag)) {
                         tags.remove(chemicalTag);
