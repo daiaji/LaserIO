@@ -329,6 +329,16 @@ public class LaserNodeBE extends BaseLaserBE {
                 ItemStack card = nodeSideCache.itemHandler.getStackInSlot(slot);
                 if (card.getItem() instanceof CardRedstone && BaseCard.getTransferMode(card) == 0) { //Redstone mode and input mode
                     int redstoneStrength = level.getSignal(getBlockPos().relative(direction), direction);
+                    
+                    // [修复] 移植 UEL 的区间输入逻辑
+                    if (CardRedstone.getInterval(card)) {
+                        if (redstoneStrength >= CardRedstone.getIntervalLowerBound(card) && redstoneStrength <= CardRedstone.getIntervalUpperBound(card)) {
+                            redstoneStrength = CardRedstone.getIntervalOutput(card);
+                        } else {
+                            redstoneStrength = 0;
+                        }
+                    }
+
                     if (redstoneStrength > 0) {
                         byte redstoneChannel = BaseCard.getRedstoneChannel(card);
                         byte cardChannel = BaseCard.getChannel(card);
@@ -493,16 +503,7 @@ public class LaserNodeBE extends BaseLaserBE {
                         }
                     }
 
-                    boolean interval = CardRedstone.getInterval(card);
-                    if (interval) {
-                        byte low = CardRedstone.getIntervalLowerBound(card);
-                        byte high = CardRedstone.getIntervalUpperBound(card);
-                        if (redstoneStrength >= low && redstoneStrength <= high) {
-                            redstoneStrength = CardRedstone.getIntervalOutput(card);
-                        } else {
-                            redstoneStrength = 0;
-                        }
-                    }
+                    // [修复] 移除了错误的输出端区间逻辑 (Interval 仅用于输入端)
 
                     byte outputMode = CardRedstone.getOutputMode(card);
                     if (outputMode == 1) {
