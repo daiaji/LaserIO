@@ -86,6 +86,19 @@ public class LaserIOLanguageProvider extends LanguageProvider {
         add("screen.laserio.ignored", "Ignored");
         add("screen.laserio.low", "Low");
         add("screen.laserio.high", "High");
+        
+        // [Fix Patch #52] Added missing translations for Redstone Card
+        add("screen.laserio.redstone.interval", "Interval");
+        add("screen.laserio.redstone.interval.lower_bound", "Lower bound");
+        add("screen.laserio.redstone.interval.upper_bound", "Upper bound");
+        add("screen.laserio.redstone.interval.output", "Output");
+        add("screen.laserio.redstone.output_mode.normal", "Normal");
+        add("screen.laserio.redstone.output_mode.complementary", "Complementary");
+        add("screen.laserio.redstone.output_mode.not", "NOT");
+        add("screen.laserio.redstone.logic_operation.none", "No logic operation");
+        add("screen.laserio.redstone.logic_operation.and", "AND");
+        add("screen.laserio.redstone.logic_operation.or", "OR");
+        add("screen.laserio.redstone.logic_operation.xor", "XOR");
 
         add("screen.laserio.showparticles", "Show Particles");
         add("screen.laserio.hideparticles", "Hide Particles");

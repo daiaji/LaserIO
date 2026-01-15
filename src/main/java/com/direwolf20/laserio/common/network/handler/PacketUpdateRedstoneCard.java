@@ -1,7 +1,7 @@
 package com.direwolf20.laserio.common.network.handler;
 
 import com.direwolf20.laserio.common.containers.CardRedstoneContainer;
-import com.direwolf20.laserio.common.items.cards.BaseCard; // [新增] 引入 BaseCard
+import com.direwolf20.laserio.common.items.cards.BaseCard;
 import com.direwolf20.laserio.common.items.cards.CardRedstone;
 import com.direwolf20.laserio.common.network.data.UpdateRedstoneCardPayload;
 import net.minecraft.world.entity.player.Player;
@@ -29,12 +29,20 @@ public class PacketUpdateRedstoneCard {
 
             ItemStack stack;
             stack = ((CardRedstoneContainer) container).cardItem;
-            
-            // 应用所有设置
+
             CardRedstone.setTransferMode(stack, payload.mode());
-            BaseCard.setChannel(stack, payload.channel());             // [新增] 设置基础网络频道
-            CardRedstone.setRedstoneChannel(stack, payload.redstoneChannel()); // [修改] 设置红石逻辑频道
+            BaseCard.setChannel(stack, payload.channel());
+            CardRedstone.setRedstoneChannel(stack, payload.redstoneChannel());
+            
+            // [Fix Patch #52] Apply new Redstone Card settings
+            CardRedstone.setInterval(stack, payload.interval());
+            CardRedstone.setIntervalLowerBound(stack, payload.intervalLowerBound());
+            CardRedstone.setIntervalUpperBound(stack, payload.intervalUpperBound());
+            CardRedstone.setIntervalOutput(stack, payload.intervalOutput());
             CardRedstone.setStrong(stack, payload.strong());
+            CardRedstone.setOutputMode(stack, payload.outputMode());
+            CardRedstone.setLogicOperation(stack, payload.logicOperation());
+            CardRedstone.setRedstoneChannelOperation(stack, payload.logicOperationChannel());
         });
     }
 }

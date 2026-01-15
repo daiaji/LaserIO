@@ -99,7 +99,8 @@ public class BaseCardCache {
         if (redstoneMode == 0 || BaseCard.getNamedTransferMode(cardItem).equals(BaseCard.TransferMode.SENSOR)) { //Sensors are always enabled
             enabled = true;
         } else {
-            byte strength = be.getRedstoneChannelStrength(redstoneChannel);
+            // [Fix] Passed 'channel' to getRedstoneChannelStrength to correctly isolate networks
+            byte strength = be.getRedstoneChannelStrength(channel, redstoneChannel);
             if (strength > 0 && redstoneMode == 1) {
                 enabled = false;
             } else if (strength == 0 && redstoneMode == 2) {
@@ -234,10 +235,13 @@ public class BaseCardCache {
                 }
             }
         } else if (filterCard.getItem() instanceof FilterNBT) {
-            for (Map.Entry<DataComponentType<?>, Optional<?>> entry : testStack.getComponentsPatch().entrySet()) {
-                if (filterNBTs.contains(entry.getKey().toString())) {
-                    filterCache.put(key, isAllowList);
-                    return isAllowList;
+            // [Fix Patch #88] Added check to prevent processing items with no components
+            if (!testStack.getComponentsPatch().isEmpty()) {
+                for (Map.Entry<DataComponentType<?>, Optional<?>> entry : testStack.getComponentsPatch().entrySet()) {
+                    if (filterNBTs.contains(entry.getKey().toString())) {
+                        filterCache.put(key, isAllowList);
+                        return isAllowList;
+                    }
                 }
             }
         } else {

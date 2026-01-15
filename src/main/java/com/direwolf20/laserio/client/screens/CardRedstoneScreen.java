@@ -1,6 +1,7 @@
 package com.direwolf20.laserio.client.screens;
 
 import com.direwolf20.laserio.client.screens.widgets.ChannelButton;
+import com.direwolf20.laserio.client.screens.widgets.NumberButton;
 import com.direwolf20.laserio.client.screens.widgets.ToggleButton;
 import com.direwolf20.laserio.common.LaserIO;
 import com.direwolf20.laserio.common.containers.CardHolderContainer;
@@ -16,6 +17,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
@@ -36,11 +38,17 @@ public class CardRedstoneScreen extends AbstractContainerScreen<CardRedstoneCont
     private static final ResourceLocation CARD_HOLDER_GUI = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/cardholder_node.png");
 
     protected final CardRedstoneContainer container;
-    // [修复] 添加遗漏的 currentChannel 字段
-    protected byte currentChannel; 
+    protected byte currentChannel; // Network Channel
     protected byte currentMode;
-    protected byte currentRedstoneChannel;
+    protected byte currentRedstoneChannel; // Signal Logic Channel
+    protected boolean currentInterval;
+    protected byte currentIntervalLowerBound;
+    protected byte currentIntervalUpperBound;
+    protected byte currentIntervalOutput;
     protected boolean currentStrong;
+    protected byte currentOutputMode;
+    protected byte currentLogicOperation;
+    protected byte currentLogicOperationChannel;
     protected final ItemStack card;
     protected Map<String, Button> buttons = new HashMap<>();
     private boolean showCardHolderUI;
@@ -62,29 +70,73 @@ public class CardRedstoneScreen extends AbstractContainerScreen<CardRedstoneCont
         toggleHolderSlots();
         super.render(guiGraphics, mouseX, mouseY, partialTicks);
         this.renderTooltip(guiGraphics, mouseX, mouseY);
-        
+
         Button modeButton = buttons.get("mode");
         if (MiscTools.inBounds(modeButton.getX(), modeButton.getY(), modeButton.getWidth(), modeButton.getHeight(), mouseX, mouseY)) {
-            MutableComponent translatableComponents[] = new MutableComponent[3];
+            MutableComponent[] translatableComponents = new MutableComponent[2];
             translatableComponents[0] = Component.translatable("screen.laserio.input");
             translatableComponents[1] = Component.translatable("screen.laserio.output");
             guiGraphics.renderTooltip(font, translatableComponents[currentMode], mouseX, mouseY);
         }
-        if (currentMode == 1) {
+
+        if (currentMode == 0) { // Input Mode
+            Button intervalToggleButton = buttons.get("intervalToggle");
+            if (MiscTools.inBounds(intervalToggleButton.getX(), intervalToggleButton.getY(), intervalToggleButton.getWidth(), intervalToggleButton.getHeight(), mouseX, mouseY)) {
+                guiGraphics.renderTooltip(font, Component.translatable("screen.laserio.redstone.interval"), mouseX, mouseY);
+            }
+            if (currentInterval) {
+                Button intervalLowerBoundButton = buttons.get("intervalLowerBound");
+                if (MiscTools.inBounds(intervalLowerBoundButton.getX(), intervalLowerBoundButton.getY(), intervalLowerBoundButton.getWidth(), intervalLowerBoundButton.getHeight(), mouseX, mouseY)) {
+                    guiGraphics.renderTooltip(font, Component.translatable("screen.laserio.redstone.interval.lower_bound"), mouseX, mouseY);
+                }
+                Button intervalUpperBoundButton = buttons.get("intervalUpperBound");
+                if (MiscTools.inBounds(intervalUpperBoundButton.getX(), intervalUpperBoundButton.getY(), intervalUpperBoundButton.getWidth(), intervalUpperBoundButton.getHeight(), mouseX, mouseY)) {
+                    guiGraphics.renderTooltip(font, Component.translatable("screen.laserio.redstone.interval.upper_bound"), mouseX, mouseY);
+                }
+                Button intervalOutputButton = buttons.get("intervalOutput");
+                if (MiscTools.inBounds(intervalOutputButton.getX(), intervalOutputButton.getY(), intervalOutputButton.getWidth(), intervalOutputButton.getHeight(), mouseX, mouseY)) {
+                    guiGraphics.renderTooltip(font, Component.translatable("screen.laserio.redstone.interval.output"), mouseX, mouseY);
+                }
+            }
+        } else { // Output Mode
             Button strongButton = buttons.get("strong");
             if (MiscTools.inBounds(strongButton.getX(), strongButton.getY(), strongButton.getWidth(), strongButton.getHeight(), mouseX, mouseY)) {
-                MutableComponent translatableComponents[] = new MutableComponent[2];
+                MutableComponent[] translatableComponents = new MutableComponent[2];
                 translatableComponents[0] = Component.translatable("screen.laserio.weak");
                 translatableComponents[1] = Component.translatable("screen.laserio.strong");
                 guiGraphics.renderTooltip(font, translatableComponents[currentStrong ? 1 : 0], mouseX, mouseY);
             }
+            Button outputModeButton = buttons.get("outputMode");
+            if (MiscTools.inBounds(outputModeButton.getX(), outputModeButton.getY(), outputModeButton.getWidth(), outputModeButton.getHeight(), mouseX, mouseY)) {
+                MutableComponent[] translatableComponents = new MutableComponent[3];
+                translatableComponents[0] = Component.translatable("screen.laserio.redstone.output_mode.normal");
+                translatableComponents[1] = Component.translatable("screen.laserio.redstone.output_mode.complementary");
+                translatableComponents[2] = Component.translatable("screen.laserio.redstone.output_mode.not");
+                guiGraphics.renderTooltip(font, translatableComponents[currentOutputMode], mouseX, mouseY);
+            }
+            Button logicOperationButton = buttons.get("logicOperation");
+            if (MiscTools.inBounds(logicOperationButton.getX(), logicOperationButton.getY(), logicOperationButton.getWidth(), logicOperationButton.getHeight(), mouseX, mouseY)) {
+                MutableComponent[] translatableComponents = new MutableComponent[4];
+                translatableComponents[0] = Component.translatable("screen.laserio.redstone.logic_operation.none");
+                translatableComponents[1] = Component.translatable("screen.laserio.redstone.logic_operation.or");
+                translatableComponents[2] = Component.translatable("screen.laserio.redstone.logic_operation.and");
+                translatableComponents[3] = Component.translatable("screen.laserio.redstone.logic_operation.xor");
+                guiGraphics.renderTooltip(font, translatableComponents[currentLogicOperation], mouseX, mouseY);
+            }
+            if (currentLogicOperation != 0) {
+                Button logicOperationChannelButton = buttons.get("logicOperationChannel");
+                if (MiscTools.inBounds(logicOperationChannelButton.getX(), logicOperationChannelButton.getY(), logicOperationChannelButton.getWidth(), logicOperationChannelButton.getHeight(), mouseX, mouseY)) {
+                    guiGraphics.renderTooltip(font, Component.translatable("screen.laserio.redstonechannel").append(String.valueOf(currentLogicOperationChannel)), mouseX, mouseY);
+                }
+            }
         }
-        // 渲染基础频道 Tip (左下角)
+
+        // Render Network Channel Tip
         Button channelButton = buttons.get("channel");
         if (MiscTools.inBounds(channelButton.getX(), channelButton.getY(), channelButton.getWidth(), channelButton.getHeight(), mouseX, mouseY)) {
             guiGraphics.renderTooltip(font, Component.translatable("screen.laserio.channel").append(String.valueOf(currentChannel)), mouseX, mouseY);
         }
-        // 渲染红石频道 Tip (上方)
+        // Render Redstone Logic Channel Tip
         Button redstoneChannelButton = buttons.get("redstoneChannel");
         if (MiscTools.inBounds(redstoneChannelButton.getX(), redstoneChannelButton.getY(), redstoneChannelButton.getWidth(), redstoneChannelButton.getHeight(), mouseX, mouseY)) {
             guiGraphics.renderTooltip(font, Component.translatable("screen.laserio.redstonechannel").append(String.valueOf(currentRedstoneChannel)), mouseX, mouseY);
@@ -102,6 +154,51 @@ public class CardRedstoneScreen extends AbstractContainerScreen<CardRedstoneCont
         }));
     }
 
+    public void addChannelButton() {
+        // Network Channel (Bottom Left)
+        buttons.put("channel", new ChannelButton(getGuiLeft() + 5, getGuiTop() + 65, 16, 16, currentChannel, (button) -> {
+            currentChannel = BaseCard.nextChannel(card);
+            ((ChannelButton) button).setChannel(currentChannel);
+        }));
+    }
+
+    public void addRedstoneChannelButton() {
+        // Redstone Logic Channel (Top Right area)
+        buttons.put("redstoneChannel", new ChannelButton(getGuiLeft() + 105, getGuiTop() + 5, 16, 16, currentRedstoneChannel, (button) -> {
+            currentRedstoneChannel = CardRedstone.nextRedstoneChannel(card);
+            ((ChannelButton) button).setChannel(currentRedstoneChannel);
+        }));
+    }
+
+    public void addIntervalToggleButton() {
+        ResourceLocation[] intervalTextures = new ResourceLocation[2];
+        intervalTextures[0] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/redstoneintervalfalse.png");
+        intervalTextures[1] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/redstoneintervaltrue.png");
+        buttons.put("intervalToggle", new ToggleButton(getGuiLeft() + 5, getGuiTop() + 25, 16, 16, intervalTextures, currentInterval ? 1 : 0, (button) -> {
+            currentInterval = !currentInterval;
+            ((ToggleButton) button).setTexturePosition(currentInterval ? 1 : 0);
+            intervalChange();
+        }));
+    }
+
+    public void addIntervalLowerBoundButton() {
+        buttons.put("intervalLowerBound", new NumberButton(getGuiLeft() + 25, getGuiTop() + 25, 16, 16, currentIntervalLowerBound, (button) -> {
+            changeIntervalLowerBound(-1);
+        }));
+    }
+
+    public void addIntervalUpperBoundButton() {
+        buttons.put("intervalUpperBound", new NumberButton(getGuiLeft() + 45, getGuiTop() + 25, 16, 16, currentIntervalUpperBound, (button) -> {
+            changeIntervalUpperBound(-1);
+        }));
+    }
+
+    public void addIntervalOutputButton() {
+        buttons.put("intervalOutput", new NumberButton(getGuiLeft() + 65, getGuiTop() + 25, 16, 16, currentIntervalOutput, (button) -> {
+            changeIntervalOutput(-1);
+        }));
+    }
+
     public void addStrongButton() {
         ResourceLocation[] strongTextures = new ResourceLocation[2];
         strongTextures[0] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/redstonelow.png");
@@ -112,35 +209,63 @@ public class CardRedstoneScreen extends AbstractContainerScreen<CardRedstoneCont
         }));
     }
 
-    public void addChannelButton() {
-        // 基础网络频道 (通常在左下角)
-        buttons.put("channel", new ChannelButton(getGuiLeft() + 5, getGuiTop() + 65, 16, 16, currentChannel, (button) -> {
-            currentChannel = BaseCard.nextChannel(card);
-            ((ChannelButton) button).setChannel(currentChannel);
+    public void addOutputModeButton() {
+        ResourceLocation[] outputModeTextures = new ResourceLocation[3];
+        outputModeTextures[0] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/redstonenormal.png");
+        outputModeTextures[1] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/redstonecomplementary.png");
+        outputModeTextures[2] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/redstonenot.png");
+        buttons.put("outputMode", new ToggleButton(getGuiLeft() + 155, getGuiTop() + 5, 16, 16, outputModeTextures, currentOutputMode, (button) -> {
+            currentOutputMode = (byte) (currentOutputMode == 2 ? 0 : currentOutputMode + 1);
+            ((ToggleButton) button).setTexturePosition(currentOutputMode);
         }));
     }
 
-    public void addRedstoneChannelButton() {
-        // 红石信号频道 (通常在上方)
-        buttons.put("redstoneChannel", new ChannelButton(getGuiLeft() + 105, getGuiTop() + 5, 16, 16, currentRedstoneChannel, (button) -> {
-            currentRedstoneChannel = CardRedstone.nextRedstoneChannel(card);
-            ((ChannelButton) button).setChannel(currentRedstoneChannel);
+    public void addLogicOperationButton() {
+        ResourceLocation[] logicOperationTextures = new ResourceLocation[4];
+        logicOperationTextures[0] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/redstonenologicoperation.png");
+        logicOperationTextures[1] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/redstoneor.png");
+        logicOperationTextures[2] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/redstoneand.png");
+        logicOperationTextures[3] = ResourceLocation.fromNamespaceAndPath(LaserIO.MODID, "textures/gui/buttons/redstonexor.png");
+        buttons.put("logicOperation", new ToggleButton(getGuiLeft() + 155, getGuiTop() + 25, 16, 16, logicOperationTextures, currentLogicOperation, (button) -> {
+            currentLogicOperation = (byte) (currentLogicOperation == 3 ? 0 : currentLogicOperation + 1);
+            ((ToggleButton) button).setTexturePosition(currentLogicOperation);
+            logicOperationChange();
+        }));
+    }
+
+    public void addLogicOperationChannelButton() {
+        buttons.put("logicOperationChannel", new ChannelButton(getGuiLeft() + 135, getGuiTop() + 25, 16, 16, currentLogicOperationChannel, (button) -> {
+            currentLogicOperationChannel = CardRedstone.nextRedstoneChannelOperation(card);
+            ((ChannelButton) button).setChannel(currentLogicOperationChannel);
         }));
     }
 
     @Override
     public void init() {
         super.init();
-        // [修复] 初始化所有字段
         currentMode = CardRedstone.getTransferMode(card);
         currentChannel = BaseCard.getChannel(card);
         currentRedstoneChannel = CardRedstone.getRedstoneChannel(card);
+        currentInterval = CardRedstone.getInterval(card);
+        currentIntervalLowerBound = CardRedstone.getIntervalLowerBound(card);
+        currentIntervalUpperBound = CardRedstone.getIntervalUpperBound(card);
+        currentIntervalOutput = CardRedstone.getIntervalOutput(card);
         currentStrong = CardRedstone.getStrong(card);
-        
+        currentOutputMode = CardRedstone.getOutputMode(card);
+        currentLogicOperation = CardRedstone.getLogicOperation(card);
+        currentLogicOperationChannel = CardRedstone.getRedstoneChannelOperation(card);
+
         addModeButton();
         addChannelButton();
         addRedstoneChannelButton();
+        addIntervalToggleButton();
+        addIntervalLowerBoundButton();
+        addIntervalUpperBoundButton();
+        addIntervalOutputButton();
         addStrongButton();
+        addOutputModeButton();
+        addLogicOperationButton();
+        addLogicOperationChannelButton();
 
         if (container.direction != -1) {
             buttons.put("return", new ExtendedButton(getGuiLeft() - 25, getGuiTop() + 1, 25, 20, Component.literal("<--"), (button) -> {
@@ -157,11 +282,91 @@ public class CardRedstoneScreen extends AbstractContainerScreen<CardRedstoneCont
 
     public void modeChange() {
         Button strongButton = buttons.get("strong");
-        if (currentMode == 0) {
+        Button outputModeButton = buttons.get("outputMode");
+        Button intervalToggleButton = buttons.get("intervalToggle");
+        Button intervalLowerBoundButton = buttons.get("intervalLowerBound");
+        Button intervalUpperBoundButton = buttons.get("intervalUpperBound");
+        Button intervalOutputButton = buttons.get("intervalOutput");
+        Button logicOperationButton = buttons.get("logicOperation");
+        Button logicOperationChannelButton = buttons.get("logicOperationChannel");
+
+        if (currentMode == 0) { // Input
+            if (!renderables.contains(intervalToggleButton))
+                addRenderableWidget(intervalToggleButton);
             removeWidget(strongButton);
-        } else if (currentMode == 1) { //extract
+            removeWidget(outputModeButton);
+            removeWidget(logicOperationButton);
+            removeWidget(logicOperationChannelButton);
+            intervalChange();
+        } else { // Output
             if (!renderables.contains(strongButton))
                 addRenderableWidget(strongButton);
+            if (!renderables.contains(outputModeButton))
+                addRenderableWidget(outputModeButton);
+            if (!renderables.contains(logicOperationButton))
+                addRenderableWidget(logicOperationButton);
+            if (!renderables.contains(logicOperationChannelButton))
+                addRenderableWidget(logicOperationChannelButton);
+            removeWidget(intervalToggleButton);
+            removeWidget(intervalLowerBoundButton);
+            removeWidget(intervalUpperBoundButton);
+            removeWidget(intervalOutputButton);
+            logicOperationChange();
+        }
+    }
+
+    public void intervalChange() {
+        Button intervalLowerBoundButton = buttons.get("intervalLowerBound");
+        Button intervalUpperBoundButton = buttons.get("intervalUpperBound");
+        Button intervalOutputButton = buttons.get("intervalOutput");
+        if (currentInterval) {
+            if (!renderables.contains(intervalLowerBoundButton))
+                addRenderableWidget(intervalLowerBoundButton);
+            if (!renderables.contains(intervalUpperBoundButton))
+                addRenderableWidget(intervalUpperBoundButton);
+            if (!renderables.contains(intervalOutputButton))
+                addRenderableWidget(intervalOutputButton);
+        } else {
+            removeWidget(intervalLowerBoundButton);
+            removeWidget(intervalUpperBoundButton);
+            removeWidget(intervalOutputButton);
+        }
+    }
+
+    public void logicOperationChange() {
+        Button logicOperationChannelButton = buttons.get("logicOperationChannel");
+        if (currentLogicOperation != 0) {
+            if (!renderables.contains(logicOperationChannelButton))
+                addRenderableWidget(logicOperationChannelButton);
+        } else {
+            removeWidget(logicOperationChannelButton);
+        }
+    }
+
+    public void changeIntervalLowerBound(int change) {
+        if (Screen.hasShiftDown()) change *= 15;
+        if (change < 0) {
+            currentIntervalLowerBound = (byte) (Math.max(currentIntervalLowerBound + change, 0));
+        } else {
+            currentIntervalLowerBound = (byte) (Math.min(currentIntervalLowerBound + change, currentIntervalUpperBound));
+        }
+    }
+
+    public void changeIntervalUpperBound(int change) {
+        if (Screen.hasShiftDown()) change *= 15;
+        if (change < 0) {
+            currentIntervalUpperBound = (byte) (Math.max(currentIntervalUpperBound + change, currentIntervalLowerBound));
+        } else {
+            currentIntervalUpperBound = (byte) (Math.min(currentIntervalUpperBound + change, 15));
+        }
+    }
+
+    public void changeIntervalOutput(int change) {
+        if (Screen.hasShiftDown()) change *= 15;
+        if (change < 0) {
+            currentIntervalOutput = (byte) (Math.max(currentIntervalOutput + change, 0));
+        } else {
+            currentIntervalOutput = (byte) (Math.min(currentIntervalOutput + change, 15));
         }
     }
 
@@ -232,8 +437,19 @@ public class CardRedstoneScreen extends AbstractContainerScreen<CardRedstoneCont
     }
 
     public void saveSettings() {
-        // [修复] 发送包含 currentChannel 的完整数据包
-        PacketDistributor.sendToServer(new UpdateRedstoneCardPayload(currentMode, currentChannel, currentRedstoneChannel, currentStrong));
+        PacketDistributor.sendToServer(new UpdateRedstoneCardPayload(
+                currentMode,
+                currentChannel,
+                currentRedstoneChannel,
+                currentInterval,
+                currentIntervalLowerBound,
+                currentIntervalUpperBound,
+                currentIntervalOutput,
+                currentStrong,
+                currentOutputMode,
+                currentLogicOperation,
+                currentLogicOperationChannel
+        ));
     }
 
     public void openNode() {
@@ -242,9 +458,36 @@ public class CardRedstoneScreen extends AbstractContainerScreen<CardRedstoneCont
         Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
     }
 
+    public void setIntervalLowerBound(NumberButton button, int btn) {
+        if (btn == 0)
+            changeIntervalLowerBound(1);
+        else if (btn == 1)
+            changeIntervalLowerBound(-1);
+        button.setValue(currentIntervalLowerBound);
+        button.playDownSound(Minecraft.getInstance().getSoundManager());
+    }
+
+    public void setIntervalUpperBound(NumberButton button, int btn) {
+        if (btn == 0)
+            changeIntervalUpperBound(1);
+        else if (btn == 1)
+            changeIntervalUpperBound(-1);
+        button.setValue(currentIntervalUpperBound);
+        button.playDownSound(Minecraft.getInstance().getSoundManager());
+    }
+
+    public void setIntervalOutput(NumberButton button, int btn) {
+        if (btn == 0)
+            changeIntervalOutput(1);
+        else if (btn == 1)
+            changeIntervalOutput(-1);
+        button.setValue(currentIntervalOutput);
+        button.playDownSound(Minecraft.getInstance().getSoundManager());
+    }
+
     @Override
     public boolean mouseClicked(double x, double y, int btn) {
-        // 基础频道按钮逻辑
+        // Network Channel
         ChannelButton channelButton = ((ChannelButton) buttons.get("channel"));
         if (MiscTools.inBounds(channelButton.getX(), channelButton.getY(), channelButton.getWidth(), channelButton.getHeight(), x, y)) {
             if (btn == 0)
@@ -255,7 +498,7 @@ public class CardRedstoneScreen extends AbstractContainerScreen<CardRedstoneCont
             channelButton.playDownSound(Minecraft.getInstance().getSoundManager());
             return true;
         }
-        // 红石频道按钮逻辑
+        // Redstone Logic Channel
         ChannelButton redstoneChannelButton = ((ChannelButton) buttons.get("redstoneChannel"));
         if (MiscTools.inBounds(redstoneChannelButton.getX(), redstoneChannelButton.getY(), redstoneChannelButton.getWidth(), redstoneChannelButton.getHeight(), x, y)) {
             if (btn == 0)
@@ -266,6 +509,36 @@ public class CardRedstoneScreen extends AbstractContainerScreen<CardRedstoneCont
             redstoneChannelButton.playDownSound(Minecraft.getInstance().getSoundManager());
             return true;
         }
+
+        // Interval Buttons
+        NumberButton intervalLowerBoundButton = ((NumberButton) buttons.get("intervalLowerBound"));
+        if (currentMode == 0 && currentInterval && MiscTools.inBounds(intervalLowerBoundButton.getX(), intervalLowerBoundButton.getY(), intervalLowerBoundButton.getWidth(), intervalLowerBoundButton.getHeight(), x, y)) {
+            setIntervalLowerBound(intervalLowerBoundButton, btn);
+            return true;
+        }
+        NumberButton intervalUpperBoundButton = ((NumberButton) buttons.get("intervalUpperBound"));
+        if (currentMode == 0 && currentInterval && MiscTools.inBounds(intervalUpperBoundButton.getX(), intervalUpperBoundButton.getY(), intervalUpperBoundButton.getWidth(), intervalUpperBoundButton.getHeight(), x, y)) {
+            setIntervalUpperBound(intervalUpperBoundButton, btn);
+            return true;
+        }
+        NumberButton intervalOutputButton = ((NumberButton) buttons.get("intervalOutput"));
+        if (currentMode == 0 && currentInterval && MiscTools.inBounds(intervalOutputButton.getX(), intervalOutputButton.getY(), intervalOutputButton.getWidth(), intervalOutputButton.getHeight(), x, y)) {
+            setIntervalOutput(intervalOutputButton, btn);
+            return true;
+        }
+        
+        // Logic Op Channel
+        ChannelButton logicOperationChannelButton = ((ChannelButton) buttons.get("logicOperationChannel"));
+        if (currentMode == 1 && currentLogicOperation != 0 && MiscTools.inBounds(logicOperationChannelButton.getX(), logicOperationChannelButton.getY(), logicOperationChannelButton.getWidth(), logicOperationChannelButton.getHeight(), x, y)) {
+            if (btn == 0)
+                currentLogicOperationChannel = CardRedstone.nextRedstoneChannelOperation(card);
+            else if (btn == 1)
+                currentLogicOperationChannel = CardRedstone.previousRedstoneChannelOperation(card);
+            logicOperationChannelButton.setChannel(currentLogicOperationChannel);
+            logicOperationChannelButton.playDownSound(Minecraft.getInstance().getSoundManager());
+            return true;
+        }
+        
         return super.mouseClicked(x, y, btn);
     }
 }
