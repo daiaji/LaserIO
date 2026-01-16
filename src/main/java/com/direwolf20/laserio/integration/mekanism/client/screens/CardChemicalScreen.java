@@ -12,13 +12,14 @@ import com.direwolf20.laserio.common.network.data.GhostSlotPayload;
 import com.direwolf20.laserio.common.network.data.OpenNodePayload;
 import com.direwolf20.laserio.common.network.data.UpdateCardPayload;
 import com.direwolf20.laserio.common.network.data.UpdateFilterPayload;
-import com.direwolf20.laserio.integration.mekanism.CardChemical; // [修复] 修正导包路径
-import com.direwolf20.laserio.integration.mekanism.MekanismStatics; // [修复] 修正导包路径
+import com.direwolf20.laserio.integration.mekanism.CardChemical;
+import com.direwolf20.laserio.integration.mekanism.MekanismStatics;
 import com.direwolf20.laserio.setup.Config;
 import mekanism.api.chemical.ChemicalStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.screens.Screen; // [修复] 补全 Screen 导包
+import net.minecraft.client.gui.components.Button; // [修复] 添加缺失的 Button 导入
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -29,6 +30,8 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.lwjgl.glfw.GLFW;
+
+import java.util.List;
 
 public class CardChemicalScreen extends CardItemScreen {
 
@@ -53,7 +56,6 @@ public class CardChemicalScreen extends CardItemScreen {
         this.renderChemicals = true;
     }
 
-    // [新增] 重写验证逻辑：只允许包含化学品的物品
     @Override
     public boolean isStackValidForFilter(ItemStack stack) {
         return MekanismStatics.doesItemStackHoldChemicals(stack);
@@ -98,11 +100,23 @@ public class CardChemicalScreen extends CardItemScreen {
         }
     }
 
+    private int getMaxAmount() {
+        int overClockerCount = container.getSlot(1).getItem().getCount();
+        if (Config.USE_CHEMICAL_TIERS_MODE.get()) {
+            List<? extends Integer> tiers = Config.MAX_CHEMICAL_TIERS.get();
+            if (overClockerCount == 0) return Config.BASE_MILLI_BUCKETS_CHEMICAL.get();
+            if (overClockerCount <= tiers.size()) return tiers.get(overClockerCount - 1);
+            return tiers.get(tiers.size() - 1);
+        } else {
+            return Math.max(overClockerCount * Config.MULTIPLIER_MILLI_BUCKETS_CHEMICAL.get(), Config.BASE_MILLI_BUCKETS_CHEMICAL.get());
+        }
+    }
+
     @Override
     public void changeAmount(int change) {
         if (Screen.hasShiftDown()) change *= 10;
         if (Screen.hasControlDown()) change *= 100;
-        int overClockerCount = container.getSlot(1).getItem().getCount();
+        
         if (change < 0) {
             if (currentMode == 0) {
                 currentPriority = (short) (Math.max(currentPriority + change, -4096));
@@ -113,7 +127,7 @@ public class CardChemicalScreen extends CardItemScreen {
             if (currentMode == 0) {
                 currentPriority = (short) (Math.min(currentPriority + change, 4096));
             } else {
-                currentChemicalExtractAmt = (Math.min(currentChemicalExtractAmt + change, Math.max(overClockerCount * Config.MULTIPLIER_MILLI_BUCKETS_CHEMICAL.get(), Config.BASE_MILLI_BUCKETS_CHEMICAL.get())));
+                currentChemicalExtractAmt = (Math.min(currentChemicalExtractAmt + change, getMaxAmount()));
             }
         }
     }
@@ -169,5 +183,31 @@ public class CardChemicalScreen extends CardItemScreen {
         if (showFilter)
             PacketDistributor.sendToServer(new UpdateFilterPayload(isAllowList == 1, isCompareNBT == 1));
         PacketDistributor.sendToServer(new UpdateCardPayload(currentMode, currentChannel, currentChemicalExtractAmt, currentPriority, currentSneaky, (short) currentTicks, currentExact, currentRegulate, (byte) currentRoundRobin, 0, 0, currentRedstoneMode, currentRedstoneChannel, currentAndMode, currentMaxBackoff));
+    }
+
+    @Override
+    protected void slotClicked(Slot slot, int inventorySlotIndex, int depositedAmount, ClickType clickType) {
+        // 调用父类处理（虽然目前父类 slotClicked 是针对 Item Card 的，但也包含通用逻辑）
+        super.slotClicked(slot, inventorySlotIndex, depositedAmount, clickType);
+
+        int newOverclockerCount = container.getSlot(1).getItem().getCount();
+        if (newOverclockerCount == lastOverclockerCount) {
+            return;
+        }
+
+        // 更新逻辑：强制设置为当前等级的最大抽取量和最快速度
+        currentChemicalExtractAmt = getMaxAmount();
+        currentTicks = Config.MIN_TICKS_CHEMICAL.get().get(Math.min(newOverclockerCount, Config.MIN_TICKS_CHEMICAL.get().size() - 1));
+
+        lastOverclockerCount = newOverclockerCount;
+
+        // 更新 UI 按钮数值
+        if (currentMode != 0) {
+            Button amountButton = buttons.get("amount");
+            if (amountButton instanceof NumberButton nb) nb.setValue(currentChemicalExtractAmt);
+
+            Button speedButton = buttons.get("speed");
+            if (speedButton instanceof NumberButton nb) nb.setValue(currentTicks);
+        }
     }
 }

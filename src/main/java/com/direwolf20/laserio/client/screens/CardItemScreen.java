@@ -16,7 +16,7 @@ import com.direwolf20.laserio.common.items.cards.CardItem;
 import com.direwolf20.laserio.common.items.cards.CardRedstone;
 import com.direwolf20.laserio.common.items.filters.*;
 import com.direwolf20.laserio.common.network.data.*;
-import com.direwolf20.laserio.integration.mekanism.client.screens.LaserGuiGraphicsChemical; // [修复] 更新导入路径
+import com.direwolf20.laserio.integration.mekanism.client.screens.LaserGuiGraphicsChemical;
 import com.direwolf20.laserio.setup.Config;
 import com.direwolf20.laserio.util.MiscTools;
 import com.mojang.blaze3d.platform.InputConstants;
@@ -901,9 +901,9 @@ public class CardItemScreen extends AbstractContainerScreen<CardItemContainer> {
             return;
         }
 
-        // 更新逻辑：重新计算最大抽取量和速度
+        // 更新逻辑：强制设置为当前等级的最大抽取量和最快速度
         currentItemExtractAmt = (byte) Math.max(newOverclockerCount * 16, 8);
-        currentTicks = Math.max(Config.MIN_TICKS_ITEM.get().get(newOverclockerCount), currentTicks);
+        currentTicks = Config.MIN_TICKS_ITEM.get().get(Math.min(newOverclockerCount, Config.MIN_TICKS_ITEM.get().size() - 1));
 
         lastOverclockerCount = newOverclockerCount;
 

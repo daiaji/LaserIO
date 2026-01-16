@@ -124,8 +124,17 @@ public class PacketUpdateCard {
                     CardEnergy.setInsertLimitPercent(stack, payload.insertLimit());
 
                 } else if (stack.getItem() instanceof CardChemical) {
-                    // 化学卡逻辑 (保持线性)
-                    int maxAmt = Math.max(overClockerCount * Config.MULTIPLIER_MILLI_BUCKETS_CHEMICAL.get(), Config.BASE_MILLI_BUCKETS_CHEMICAL.get());
+                    // [修复] 化学卡逻辑 (支持层级模式)
+                    int maxAmt;
+                    if (Config.USE_CHEMICAL_TIERS_MODE.get()) {
+                        List<? extends Integer> tiers = Config.MAX_CHEMICAL_TIERS.get();
+                        if (overClockerCount == 0) maxAmt = Config.BASE_MILLI_BUCKETS_CHEMICAL.get();
+                        else if (overClockerCount <= tiers.size()) maxAmt = tiers.get(overClockerCount - 1);
+                        else maxAmt = tiers.get(tiers.size() - 1);
+                    } else {
+                        maxAmt = Math.max(overClockerCount * Config.MULTIPLIER_MILLI_BUCKETS_CHEMICAL.get(), Config.BASE_MILLI_BUCKETS_CHEMICAL.get());
+                    }
+
                     if (extractAmt > maxAmt) {
                         extractAmt = maxAmt;
                     }

@@ -40,6 +40,8 @@ public class Config {
     // --- Chemical ---
     public static final ModConfigSpec.IntValue BASE_MILLI_BUCKETS_CHEMICAL;
     public static final ModConfigSpec.IntValue MULTIPLIER_MILLI_BUCKETS_CHEMICAL;
+    public static final ModConfigSpec.BooleanValue USE_CHEMICAL_TIERS_MODE; // [新增]
+    public static final ModConfigSpec.ConfigValue<List<? extends Integer>> MAX_CHEMICAL_TIERS; // [新增]
 
     // --- Ticks ---
     public static final ModConfigSpec.ConfigValue<List<? extends Integer>> MIN_TICKS_FLUID;
@@ -108,6 +110,18 @@ public class Config {
                 .defineInRange("base_milli_buckets_chemical", 15000, 0, Integer.MAX_VALUE);
         MULTIPLIER_MILLI_BUCKETS_CHEMICAL = COMMON_BUILDER.comment("Multiplier for Overclocker Cards - Number of Overclockers * this value = max millibuckets  (Only is Mekanism is installed)")
                 .defineInRange("multiplier_milli_buckets_chemical", 60000, 0, Integer.MAX_VALUE);
+
+        // [新增] 化学卡层级模式配置
+        USE_CHEMICAL_TIERS_MODE = COMMON_BUILDER.comment("If true, use the 'max_chemical_tiers' list instead of the linear multiplier formula. Required for MAX_INT chemical transfer.")
+                .define("use_chemical_tiers_mode", true);
+
+        // [新增] 化学卡层级数值
+        MAX_CHEMICAL_TIERS = COMMON_BUILDER.comment("Maximum Chemical extraction (mB) per tick based on overclockers count (1-4). Only used if 'use_chemical_tiers_mode' is true.")
+                .defineList("max_chemical_tiers",
+                        List.of(128000, 512000, 2048000, Integer.MAX_VALUE),
+                        () -> 0,
+                        o -> o instanceof Integer);
+
         MIN_TICKS_CHEMICAL = COMMON_BUILDER.comment("Minimum ticks between chemical extractions based on overclockers count (0-4)")
                 .defineList("min_ticks_chemical",
                         List.of(20, 15, 10, 5, 1),
